@@ -1,0 +1,116 @@
+:root {
+  --md-primary: #1a73e8;
+  --md-on-primary: #ffffff;
+  --md-surface: #ffffff;
+  --md-on-surface: #202124;
+  --md-outline: #dadce0;
+  --md-muted: #5f6368;
+  --md-surface-variant: #f1f3f4;
+  --md-error: #d93025;
+  --md-success: #1e8e3e;
+  --md-warning: #f9ab00;
+}
+
+.stApp {
+  background: #ffffff;
+}
+
+[data-testid="stSidebar"] {
+  background: #f8f9fa;
+  border-right: 1px solid var(--md-outline);
+}
+
+[data-testid="stSidebar"] .stTitle,
+[data-testid="stSidebar"] h1 {
+  color: var(--md-on-surface);
+  font-weight: 600;
+}
+
+h1, h2, h3 {
+  color: var(--md-on-surface);
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+h1 { font-size: 1.75rem; }
+h2, .stSubheader { font-size: 1.25rem; }
+
+div[data-testid="stMetric"] {
+  background: var(--md-surface);
+  border: 1px solid var(--md-outline);
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+div[data-testid="stMetric"] label {
+  color: var(--md-muted) !important;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+  color: var(--md-on-surface) !important;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.mathos-card {
+  background: var(--md-surface);
+  border: 1px solid var(--md-outline);
+  border-radius: 12px;
+  padding: 20px;
+  min-height: 112px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.metric-label {
+  color: var(--md-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--md-on-surface);
+  line-height: 1.2;
+}
+
+.badge {
+  border: 1px solid var(--md-outline);
+  border-radius: 999px;
+  padding: 4px 12px;
+  display: inline-block;
+  color: var(--md-on-surface);
+  background: var(--md-surface-variant);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin: 3px 4px 3px 0;
+}
+
+.section-note {
+  color: var(--md-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+button[kind="primary"] {
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+div[data-testid="stDataFrame"] {
+  border: 1px solid var(--md-outline);
+  border-radius: 8px;
+}
+
+div[data-testid="stExpander"] {
+  border: 1px solid var(--md-outline);
+  border-radius: 8px;
+}

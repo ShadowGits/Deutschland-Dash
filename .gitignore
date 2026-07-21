@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.streamlit/secrets.toml
+exports/*
+!exports/.gitkeep
+data/uploads/
+
+# Personal data: the workbook holds real finance, document and planner records.
+# ensure_workbook() recreates it from SCHEMA on first run, so it is not needed in git.
+data/*.xlsx
+data/*.csv
+
+# Machine-local Claude Code config (absolute venv paths, symlinks into shared-venv).
+.claude/
+.agents/
+
+# Scratch payloads generated while bulk-loading Planner OS.
+scripts/a1_add.json
+scripts/a1_add_oneline.txt
