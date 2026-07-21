@@ -26,10 +26,15 @@ def syllabus() -> pd.DataFrame:
 
 
 def units_done(db: ExcelDB) -> int:
-    """How many units Planner OS says are finished (total - left)."""
+    """How many units Planner OS says are finished (total - left).
+
+    With no snapshot yet (a fresh install), `left` defaults to the full total so this
+    reports 0 done. Defaulting `left` to 0 instead would silently claim the whole
+    syllabus was complete.
+    """
     snap = read_snapshot(db)
     total = int(safe_float(snap.get("german_units_total"), len(GERMAN_A1_UNITS)))
-    left = int(safe_float(snap.get("german_units_left"), 0))
+    left = int(safe_float(snap.get("german_units_left"), total))
     return max(total - left, 0)
 
 
