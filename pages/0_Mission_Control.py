@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from backend.planner_api import (
-    TOKEN_ENV_VAR,
+    KEY_ENV_VARS,
     fetch_metrics_with_status,
     projects,
     streaks,
@@ -24,25 +24,31 @@ st.caption(
 
 
 @st.cache_data(ttl=300, show_spinner="Reading Planner OS…")
-def load_snapshot(token: str | None) -> tuple[dict | None, str | None]:
-    return fetch_metrics_with_status(token=token)
+def load_snapshot(key: str | None) -> tuple[dict | None, str | None]:
+    return fetch_metrics_with_status(key=key)
 
 
-def configured_token() -> str | None:
+def configured_key() -> str | None:
     """Secrets win in a deployment, env var covers local runs.
 
     st.secrets raises rather than returning None when no secrets.toml exists at all,
     so this must be guarded — otherwise the page crashes on exactly the path it is
     meant to handle gracefully.
     """
-    try:
-        secret = st.secrets.get(TOKEN_ENV_VAR)
-    except Exception:  # noqa: BLE001 - no secrets file configured is normal locally
-        secret = None
-    return secret or os.environ.get(TOKEN_ENV_VAR) or None
+    for name in KEY_ENV_VARS:
+        try:
+            secret = st.secrets.get(name)
+        except Exception:  # noqa: BLE001 - no secrets file configured is normal locally
+            secret = None
+        if secret:
+            return secret
+    for name in KEY_ENV_VARS:
+        if os.environ.get(name):
+            return os.environ[name]
+    return None
 
 
-snapshot, error = load_snapshot(configured_token())
+snapshot, error = load_snapshot(configured_key())
 
 head = st.columns([0.8, 0.2])
 with head[1]:
@@ -53,7 +59,7 @@ with head[1]:
 if snapshot is None:
     st.warning(f"Strategic view unavailable — {error}")
     st.caption(
-        f"Set `{TOKEN_ENV_VAR}` in `.streamlit/secrets.toml` (gitignored) for local use, "
+        f"Set `{KEY_ENV_VARS[0]}` in `.streamlit/secrets.toml` (gitignored) for local use, "
         "or in your host's secrets for a deployment. Everything else in the dashboard works without it."
     )
     st.stop()
