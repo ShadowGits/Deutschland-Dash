@@ -118,6 +118,10 @@ class ExcelDB:
     def __init__(self, path: Path = DB_PATH) -> None:
         self.path = path
         DATA_DIR.mkdir(parents=True, exist_ok=True)
+        # Pull the workbook from Supabase Storage when running deployed.
+        # No-op when SUPABASE_URL is not set (local dev keeps using the local file).
+        from backend.storage import pull_once
+        pull_once(self.path)
         self.ensure_workbook()
 
     def ensure_workbook(self) -> None:
@@ -171,6 +175,9 @@ class ExcelDB:
                     if column not in df.columns:
                         df[column] = ""
                 df[columns].to_excel(writer, sheet_name=sheet, index=False)
+        # Mirror the local write to Supabase Storage so the deployed version stays current.
+        from backend.storage import push
+        push(self.path)
 
     def append(self, sheet: str, row: dict[str, Any]) -> None:
         df = self.read(sheet)

@@ -1,59 +1,42 @@
 from __future__ import annotations
 
-import os
-
 import pandas as pd
 import streamlit as st
 
 from backend.planner_api import (
     KEY_ENV_VARS,
-    fetch_metrics_with_status,
+    fetch_dashboard_with_status,
+    flat_map,
     projects,
     streaks,
     totals,
     upcoming_deadlines,
 )
+from utils.secrets import secret as resolve_secret
 from utils.ui import metric_grid, setup_page
 
 db = setup_page("Mission control", ":material/flag:")
 
 st.caption(
-    "The strategic layer from Planner OS — projects, milestones and deadlines that the daily task grind hides. "
-    "German A1 progress is not shown here; it lives on the German page and stays sourced from the workbook."
+    "The strategic layer from Planner OS — projects, milestones and deadlines that the daily task grind hides."
 )
 
 
 @st.cache_data(ttl=300, show_spinner="Reading Planner OS…")
-def load_snapshot(key: str | None) -> tuple[dict | None, str | None]:
-    return fetch_metrics_with_status(key=key)
+def load_data(key: str | None) -> tuple[dict | None, dict | None, str | None]:
+    """Return (snapshot, flat, error). Exactly one of snapshot/error is non-None."""
+    data, error = fetch_dashboard_with_status(key=key)
+    if data is None:
+        return None, None, error
+    return data.get("snapshot"), flat_map(data), None
 
 
-def configured_key() -> str | None:
-    """Secrets win in a deployment, env var covers local runs.
-
-    st.secrets raises rather than returning None when no secrets.toml exists at all,
-    so this must be guarded — otherwise the page crashes on exactly the path it is
-    meant to handle gracefully.
-    """
-    for name in KEY_ENV_VARS:
-        try:
-            secret = st.secrets.get(name)
-        except Exception:  # noqa: BLE001 - no secrets file configured is normal locally
-            secret = None
-        if secret:
-            return secret
-    for name in KEY_ENV_VARS:
-        if os.environ.get(name):
-            return os.environ[name]
-    return None
-
-
-snapshot, error = load_snapshot(configured_key())
+snapshot, flat, error = load_data(resolve_secret(*KEY_ENV_VARS))
 
 head = st.columns([0.8, 0.2])
 with head[1]:
     if st.button("Refresh", width="stretch", icon=":material/refresh:"):
-        load_snapshot.clear()
+        load_data.clear()
         st.rerun()
 
 if snapshot is None:
@@ -74,6 +57,19 @@ metric_grid({
     "Done today": total.get("completed_today", "—"),
     "Done last 7 days": total.get("completions_last_7_days", "—"),
 }, 4)
+
+# ----- German A1 quick-glance (hardcoded left=64 until the flat/workbook conflict is resolved) -----
+GERMAN_UNITS_TOTAL = 70
+GERMAN_UNITS_LEFT = 64  # TODO: integrate from flat_map once the doc conflict is reconciled
+german_done = GERMAN_UNITS_TOTAL - GERMAN_UNITS_LEFT
+german_pct = int(german_done / GERMAN_UNITS_TOTAL * 100)
+with st.container(border=True):
+    gcol1, gcol2 = st.columns([0.7, 0.3])
+    with gcol1:
+        st.markdown("**🇩🇪 German A1**")
+        st.progress(german_pct, text=f"{german_done}/{GERMAN_UNITS_TOTAL} units done ({german_pct}%)")
+    with gcol2:
+        st.metric("Units left", GERMAN_UNITS_LEFT)
 
 streak_values = streaks(snapshot)
 if streak_values:
