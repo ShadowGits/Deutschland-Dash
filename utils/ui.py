@@ -30,7 +30,7 @@ def setup_page(title: str, icon: str = "∑") -> ExcelDB:
     st.sidebar.caption("Germany 2027 command center")
     st.title(title)
     
-    if title in ["Study", "Research", "Germany", "German", "Applications", "Finance"]:
+    if title in ["Study", "Internship and Project", "Germany", "Language", "Colleges", "Finance"]:
         key = resolve_secret(*KEY_ENV_VARS)
         project_rows = _load_planner_os_projects(key)
         project = next((p for p in project_rows if p.get("name", "").lower() == title.lower()), None)

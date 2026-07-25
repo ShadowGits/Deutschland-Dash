@@ -8,7 +8,7 @@ from config import DIFFICULTY_OPTIONS, STATUS_OPTIONS
 from utils.helpers import contains_text
 from utils.ui import save_editor, setup_page
 
-db = setup_page("Research & Internship", "∫")
+db = setup_page("Internship and Project", "🔬")
 
 papers_tab, internship_tab, project_tab = st.tabs(["Papers", "Internship", "Math project"])
 
