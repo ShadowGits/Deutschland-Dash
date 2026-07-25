@@ -47,27 +47,39 @@ with docs_tab:
 
     st.divider()
     st.subheader("Attached files")
-    st.caption("Upload scans/PDFs and link them to a document. Stored in data/uploads/.")
+    st.caption("Upload scans/PDFs and link them to a document. Stored safely in Google Drive.")
     doc_names = [d for d in docs["document"].astype(str).tolist() if d.strip()]
     target_doc = st.selectbox("Document", doc_names, key="upload_target_doc") if doc_names else None
     uploaded = st.file_uploader("Files", accept_multiple_files=True, key="doc_file_uploader")
     if uploaded and target_doc and st.button("Attach files", type="primary", key="attach_files"):
-        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        from backend.drive_storage import upload_file
+        import io
         for file in uploaded:
-            (UPLOADS_DIR / f"{_slug(target_doc)}__{_slug(file.name)}").write_bytes(file.getbuffer())
+            filename = f"{_slug(target_doc)}__{_slug(file.name)}"
+            upload_file(filename, file.type, io.BytesIO(file.getvalue()))
         st.success(f"Attached {len(uploaded)} file(s) to {target_doc}.")
         st.rerun()
 
-    stored = sorted(UPLOADS_DIR.glob("*__*")) if UPLOADS_DIR.exists() else []
+    from backend.drive_storage import list_files, download_file, delete_file
+    stored = list_files()
     if not stored:
         st.caption("No files uploaded yet.")
-    for path in stored:
-        doc_part, _, file_part = path.name.partition("__")
+    for f in stored:
+        fname = f.get("name", "Unknown")
+        fid = f.get("id")
+        doc_part, _, file_part = fname.partition("__")
+        if not file_part:
+            file_part = fname
         name_col, dl_col, rm_col = st.columns([6, 2, 2])
         name_col.write(f"**{doc_part.replace('_', ' ')}** · {file_part}")
-        dl_col.download_button("Download", data=path.read_bytes(), file_name=file_part, key=f"dl_{path.name}")
-        if rm_col.button("Delete", key=f"rm_{path.name}"):
-            path.unlink(missing_ok=True)
+        
+        # Streamlit's download_button requires the data upfront, so we fetch on click
+        # A standard button downloads it temporarily to the page
+        with dl_col:
+            st.download_button("Download", data=download_file(fid) or b"", file_name=file_part, key=f"dl_{fid}")
+            
+        if rm_col.button("Delete", key=f"rm_{fid}"):
+            delete_file(fid)
             st.rerun()
 
 with tests_tab:

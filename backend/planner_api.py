@@ -139,3 +139,69 @@ def streaks(snapshot: dict[str, Any] | None) -> dict[str, int]:
 
 def totals(snapshot: dict[str, Any] | None) -> dict[str, Any]:
     return dict((snapshot or {}).get("totals") or {})
+
+
+def _make_request(
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+    key: str | None = None,
+    base_url: str | None = None,
+    timeout: int = TIMEOUT_SECONDS,
+) -> tuple[dict[str, Any] | None, str | None]:
+    resolved = resolve_key(key)
+    if not resolved:
+        return None, f"No app key configured."
+
+    url = f"{(base_url or BASE_URL).rstrip('/')}{path}"
+    headers = {
+        "X-App-Key": resolved,
+        "Accept": "application/json",
+    }
+    
+    data = None
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            resp_payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            err_body = json.loads(exc.read().decode("utf-8"))
+            msg = err_body.get("detail", {}).get("message", "Unknown error")
+            return None, f"HTTP {exc.code}: {msg}"
+        except Exception:
+            return None, f"Planner OS API returned HTTP {exc.code}."
+    except Exception as exc:
+        logger.warning("Planner API error: %s", exc)
+        return None, f"Request failed: {exc}"
+
+    if not isinstance(resp_payload, dict) or not resp_payload.get("success", True):
+        message = resp_payload.get("message") if isinstance(resp_payload, dict) else None
+        return None, f"Planner OS API reported failure: {message}"
+
+    return resp_payload.get("data", {}), None
+
+
+def fetch_week_view(date_str: str | None = None, key: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch tasks and goals for the week of date_str (YYYY-MM-DD)."""
+    path = "/v2/week"
+    if date_str:
+        path += f"?date={date_str}"
+    return _make_request("GET", path, key=key)
+
+
+def update_task_status(task_id: str, done: bool, key: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
+    """Mark a task done or todo."""
+    path = f"/v2/day/tasks/{task_id}"
+    return _make_request("PATCH", path, {"done": done}, key=key)
+
+
+def update_monthly_goal(goal_id: str, description: str, key: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
+    """Update a monthly goal's description."""
+    path = f"/v2/goals/monthly/{goal_id}"
+    return _make_request("PATCH", path, {"description": description}, key=key)
