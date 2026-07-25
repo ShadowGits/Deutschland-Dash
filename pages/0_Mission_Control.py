@@ -7,8 +7,6 @@ import streamlit as st
 from backend.planner_api import (
     KEY_ENV_VARS,
     fetch_dashboard_with_status,
-    add_monthly_goal,
-    update_monthly_goal,
     flat_map,
     projects,
     streaks,
