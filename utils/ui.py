@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 from pathlib import Path
 from typing import Iterable
+import datetime
 
 import pandas as pd
 import streamlit as st
@@ -10,6 +11,14 @@ import streamlit as st
 from backend.excel_db import ExcelDB
 from config import APP_NAME, ASSETS_DIR
 from utils.helpers import contains_text
+from backend.planner_api import KEY_ENV_VARS, fetch_dashboard_with_status, add_monthly_goal, update_monthly_goal, projects as get_projects
+from utils.secrets import secret as resolve_secret
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_planner_os_projects(key: str | None) -> list[dict]:
+    data, _ = fetch_dashboard_with_status(key=key)
+    if not data: return []
+    return get_projects(data.get("snapshot"))
 
 
 def setup_page(title: str, icon: str = "∑") -> ExcelDB:
@@ -20,6 +29,41 @@ def setup_page(title: str, icon: str = "∑") -> ExcelDB:
     st.sidebar.title("MathOS")
     st.sidebar.caption("Germany 2027 command center")
     st.title(title)
+    
+    if title in ["Study", "Research", "Germany", "German", "Applications", "Finance"]:
+        key = resolve_secret(*KEY_ENV_VARS)
+        project_rows = _load_planner_os_projects(key)
+        project = next((p for p in project_rows if p.get("name", "").lower() == title.lower()), None)
+        
+        if project:
+            mg = project.get("monthly_goal")
+            pid = project["id"]
+            with st.expander("Monthly Goal", expanded=False):
+                if mg:
+                    new_desc = st.text_area("Description", mg["description"], key=f"mg_{mg['id']}", height=100)
+                    if st.button("Save Updates", key=f"save_mg_{mg['id']}"):
+                        res, err = update_monthly_goal(mg["id"], new_desc, key)
+                        if err:
+                            st.error(err)
+                        else:
+                            st.success("Saved!")
+                            _load_planner_os_projects.clear()
+                            st.rerun()
+                else:
+                    new_desc = st.text_area("Description", placeholder="Enter goal for this month...", key=f"new_mg_{pid}", height=100)
+                    if st.button("Add Goal", key=f"add_mg_{pid}"):
+                        if not new_desc.strip():
+                            st.error("Description cannot be empty.")
+                        else:
+                            month_start = datetime.date.today().replace(day=1).isoformat()
+                            res, err = add_monthly_goal(pid, month_start, new_desc, key)
+                            if err:
+                                st.error(err)
+                            else:
+                                st.success("Goal added!")
+                                _load_planner_os_projects.clear()
+                                st.rerun()
+
     db = ExcelDB()
     with st.sidebar.expander("Global Search"):
         query = st.text_input("Search", key=f"global_search_{title}")
