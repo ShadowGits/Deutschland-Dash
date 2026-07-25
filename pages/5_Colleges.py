@@ -8,7 +8,7 @@ from backend.progress import readiness_scores
 from config import COLLEGE_STATUS_OPTIONS, PRIORITY_OPTIONS, TRACK_STATUS_OPTIONS
 from utils.ui import download_path, metric_grid, setup_page
 
-db = setup_page("Applications", "🎓")
+db = setup_page("Colleges", "🎓")
 
 colleges_tab, timeline_tab, sop_tab = st.tabs(["Colleges", "Timeline", "SOP"])
 

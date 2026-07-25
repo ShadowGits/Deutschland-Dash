@@ -8,7 +8,7 @@ from backend.progress import language_progress
 from config import TEST_STATUS_OPTIONS, TRACK_STATUS_OPTIONS
 from utils.ui import metric_grid, pace_panel, setup_page
 
-db = setup_page("German", ":material/translate:")
+db = setup_page("Language", "🇩🇪")
 
 summary = track_summary(db)
 units = unit_table(db)

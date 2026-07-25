@@ -5,7 +5,6 @@ from backend.planner_api import (
     KEY_ENV_VARS,
     fetch_week_view,
     update_task_status,
-    update_monthly_goal,
     fetch_metrics,
     projects as get_projects
 )
@@ -53,23 +52,6 @@ monthly_goals = data.get("monthly_goals", [])
 weekly_goals = data.get("weekly_goals", [])
 week_start = data.get("week_start", str(today))
 
-st.subheader("Monthly Goals")
-if not monthly_goals:
-    st.info("No monthly goals set for this month. The AI will create them when you ask it to plan.")
-else:
-    for mg in monthly_goals:
-        pname = project_names.get(mg["project_id"], mg["project_id"][:8])
-        with st.expander(f"Goal for {pname}", expanded=True):
-            new_desc = st.text_area("Description", mg["description"], key=f"mg_{mg['id']}", height=100)
-            if st.button("Save Updates", key=f"save_mg_{mg['id']}"):
-                res, err = update_monthly_goal(mg["id"], new_desc, key)
-                if err:
-                    st.error(err)
-                else:
-                    st.success("Saved! Ask the AI to replan if necessary.")
-                    load_week.clear()
-                    st.rerun()
-
 st.subheader("FYI: Weekly Goals (AI Planned)")
 if not weekly_goals:
     st.info("No weekly goals mapped by AI for this week.")
@@ -103,7 +85,7 @@ for i, col in enumerate(cols):
                 )
                 
                 if changed != is_done:
-                    st.toast("Updating Planner OS...")
+                    st.toast("Updating Planner OS...", icon="🔄")
                     update_task_status(task["id"], changed, key)
                     load_week.clear()
                     st.rerun()
@@ -117,3 +99,12 @@ for i, col in enumerate(cols):
                 
                 if meta:
                     st.caption(" | ".join(meta))
+
+st.divider()
+st.subheader("FYI: Current Month's Goals")
+if not monthly_goals:
+    st.info("No monthly goals set for this month. Add them in Mission Control.")
+else:
+    for mg in monthly_goals:
+        pname = project_names.get(mg["project_id"], mg["project_id"][:8])
+        st.markdown(f"**{pname}**: {mg['description']}")

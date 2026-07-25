@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import datetime
 import pandas as pd
 import streamlit as st
 
 from backend.planner_api import (
     KEY_ENV_VARS,
     fetch_dashboard_with_status,
+    add_monthly_goal,
+    update_monthly_goal,
     flat_map,
     projects,
     streaks,
@@ -104,6 +107,34 @@ else:
                     st.caption(f"Next: **{nxt.get('name', '—')}** by {nxt.get('target_date', '—')}")
                 else:
                     st.caption("No milestone set.")
+
+                mg = project.get("monthly_goal")
+                pid = project["id"]
+                with st.expander("Monthly Goal", expanded=False):
+                    if mg:
+                        new_desc = st.text_area("Description", mg["description"], key=f"mg_{mg['id']}", height=100)
+                        if st.button("Save Updates", key=f"save_mg_{mg['id']}"):
+                            res, err = update_monthly_goal(mg["id"], new_desc, key)
+                            if err:
+                                st.error(err)
+                            else:
+                                st.success("Saved!")
+                                load_data.clear()
+                                st.rerun()
+                    else:
+                        new_desc = st.text_area("Description", placeholder="Enter goal for this month...", key=f"new_mg_{pid}", height=100)
+                        if st.button("Add Goal", key=f"add_mg_{pid}"):
+                            if not new_desc.strip():
+                                st.error("Description cannot be empty.")
+                            else:
+                                month_start = datetime.date.today().replace(day=1).isoformat()
+                                res, err = add_monthly_goal(pid, month_start, new_desc, key)
+                                if err:
+                                    st.error(err)
+                                else:
+                                    st.success("Goal added!")
+                                    load_data.clear()
+                                    st.rerun()
 
 st.subheader("Upcoming deadlines")
 deadline_rows = upcoming_deadlines(snapshot)
