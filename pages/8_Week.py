@@ -6,7 +6,6 @@ from backend.planner_api import (
     fetch_week_view,
     update_task_status,
     update_monthly_goal,
-    add_monthly_goal,
     fetch_metrics,
     projects as get_projects
 )
@@ -55,12 +54,12 @@ weekly_goals = data.get("weekly_goals", [])
 week_start = data.get("week_start", str(today))
 
 st.subheader("Monthly Goals")
-goals_by_project = {mg["project_id"]: mg for mg in monthly_goals}
-
-for pid, pname in project_names.items():
-    mg = goals_by_project.get(pid)
-    with st.expander(f"Goal for {pname}", expanded=bool(mg)):
-        if mg:
+if not monthly_goals:
+    st.info("No monthly goals set for this month. The AI will create them when you ask it to plan.")
+else:
+    for mg in monthly_goals:
+        pname = project_names.get(mg["project_id"], mg["project_id"][:8])
+        with st.expander(f"Goal for {pname}", expanded=True):
             new_desc = st.text_area("Description", mg["description"], key=f"mg_{mg['id']}", height=100)
             if st.button("Save Updates", key=f"save_mg_{mg['id']}"):
                 res, err = update_monthly_goal(mg["id"], new_desc, key)
@@ -70,21 +69,6 @@ for pid, pname in project_names.items():
                     st.success("Saved! Ask the AI to replan if necessary.")
                     load_week.clear()
                     st.rerun()
-        else:
-            new_desc = st.text_area("Description", placeholder="Enter goal for this month...", key=f"new_mg_{pid}", height=100)
-            if st.button("Add Goal", key=f"add_mg_{pid}"):
-                if not new_desc.strip():
-                    st.error("Description cannot be empty.")
-                else:
-                    # Default to current month
-                    month_start = datetime.date.today().replace(day=1).isoformat()
-                    res, err = add_monthly_goal(pid, month_start, new_desc, key)
-                    if err:
-                        st.error(err)
-                    else:
-                        st.success("Goal added! Ask the AI to plan the week based on it.")
-                        load_week.clear()
-                        st.rerun()
 
 st.subheader("FYI: Weekly Goals (AI Planned)")
 if not weekly_goals:

@@ -205,8 +205,3 @@ def update_monthly_goal(goal_id: str, description: str, key: str | None = None) 
     """Update a monthly goal's description."""
     path = f"/v2/goals/monthly/{goal_id}"
     return _make_request("PATCH", path, {"description": description}, key=key)
-
-def add_monthly_goal(project_id: str, month: str, description: str, key: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
-    """Create a new monthly goal for a project."""
-    path = "/v2/goals/monthly"
-    return _make_request("POST", path, {"project_id": project_id, "month": month, "description": description}, key=key)
