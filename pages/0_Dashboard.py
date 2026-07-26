@@ -4,7 +4,6 @@ import datetime
 import pandas as pd
 import streamlit as st
 
-from backend.german import track_summary as german_summary
 from backend.planner_api import (
     KEY_ENV_VARS,
     add_monthly_goal,
@@ -14,48 +13,47 @@ from backend.planner_api import (
     streaks,
     totals,
     update_monthly_goal,
-    upcoming_deadlines,
+    upcoming_deadlines as get_upcoming_deadlines,
+    fetch_week_view,
+    update_task_status,
 )
-from utils.helpers import safe_float
 from utils.secrets import secret as resolve_secret
-from utils.ui import metric_grid, setup_page
+from utils.ui import metric_grid, setup_page, pace_panel
 
-db = setup_page("Mission control", ":material/flag:")
+db = setup_page("Dashboard", ":material/dashboard:")
 
-st.caption(
-    "The strategic layer from Planner OS — projects, milestones and deadlines that the daily task grind hides."
-)
+st.caption("Strategic overview and Today's focus from Planner OS.")
 
+api_key = resolve_secret(*KEY_ENV_VARS)
 
 @st.cache_data(ttl=300, show_spinner="Reading Planner OS…")
 def load_data(key: str | None) -> tuple[dict | None, dict | None, str | None]:
-    """Return (snapshot, flat, error). Exactly one of snapshot/error is non-None."""
     data, error = fetch_dashboard_with_status(key=key)
     if data is None:
         return None, None, error
     return data.get("snapshot"), flat_map(data), None
 
+@st.cache_data(ttl=300, show_spinner="Loading Today's tasks...")
+def load_today(date_str: str | None, key: str | None):
+    return fetch_week_view(date_str, key)
 
-api_key = resolve_secret(*KEY_ENV_VARS)
 snapshot, flat, error = load_data(api_key)
 
 head = st.columns([0.8, 0.2])
 with head[1]:
     if st.button("Refresh", width="stretch", icon=":material/refresh:"):
         load_data.clear()
+        load_today.clear()
         st.rerun()
 
 if snapshot is None:
     st.warning(f"Strategic view unavailable — {error}")
-    st.caption(
-        f"Set `{KEY_ENV_VARS[0]}` in `.streamlit/secrets.toml` (gitignored) for local use, "
-        "or in your host's secrets for a deployment. Everything else in the dashboard works without it."
-    )
     st.stop()
 
 with head[0]:
     st.caption(f"Snapshot generated {snapshot.get('generated_on', '—')} · {snapshot.get('timezone', '')}")
 
+# 1. Macro Metrics
 total = totals(snapshot)
 metric_grid({
     "Open tasks": total.get("open_tasks", "—"),
@@ -64,17 +62,9 @@ metric_grid({
     "Done last 7 days": total.get("completions_last_7_days", "—"),
 }, 4)
 
-_lang_total = int(safe_float((flat or {}).get("language_units_total"), 0))
-_lang_left = int(safe_float((flat or {}).get("language_units_left"), 0))
-german_done = max(_lang_total - _lang_left, 0) // 2
-gs = german_summary(german_done)
-with st.container(border=True):
-    gcol1, gcol2 = st.columns([0.7, 0.3])
-    with gcol1:
-        st.markdown("**🇩🇪 German A1**")
-        st.progress(min(int(gs["pct"]), 100), text=f"{gs['done']}/{gs['total']} units done ({gs['pct']:.0f}%)")
-    with gcol2:
-        st.metric("Units left", gs["left"])
+# 2. Pace Panel & Streaks
+st.subheader("Daily Pace")
+pace_panel(flat)
 
 streak_values = streaks(snapshot)
 if streak_values:
@@ -83,6 +73,45 @@ if streak_values:
             icon = "🔥" if days else "💤"
             st.metric(f"{icon} {name.title()} streak", f"{days}d", border=True)
 
+# 3. Today's Focus
+st.subheader("Today's Focus")
+today = datetime.date.today()
+today_data, today_error = load_today(str(today), api_key)
+
+if today_error or not today_data:
+    st.warning(today_error or "Failed to load today's tasks.")
+else:
+    tasks = today_data.get("items", [])
+    day_tasks = [t for t in tasks if t.get("scheduled_date") == today.isoformat() or t.get("due_date") == today.isoformat()]
+    
+    if not day_tasks:
+        st.info("No tasks scheduled for today in Planner OS.")
+    else:
+        for task in day_tasks:
+            with st.container(border=True):
+                is_done = task["done"]
+                changed = st.checkbox(
+                    task["title"],
+                    value=is_done,
+                    key=f"today_task_{task['id']}_{is_done}"
+                )
+                
+                if changed != is_done:
+                    st.toast("Updating Planner OS...", icon="🔄")
+                    update_task_status(task["id"], changed, api_key)
+                    load_today.clear()
+                    st.rerun()
+                
+                meta = []
+                if task.get("start_time"):
+                    meta.append(f"🕒 {task['start_time']}")
+                if task.get("priority") == "high":
+                    meta.append("🔥 High")
+                
+                if meta:
+                    st.caption(" | ".join(meta))
+
+# 4. Projects
 st.subheader("Projects")
 project_rows = projects(snapshot)
 if not project_rows:
@@ -138,8 +167,9 @@ else:
                                     load_data.clear()
                                     st.rerun()
 
+# 5. Upcoming deadlines
 st.subheader("Upcoming deadlines")
-deadline_rows = upcoming_deadlines(snapshot)
+deadline_rows = get_upcoming_deadlines(snapshot)
 if not deadline_rows:
     st.success("Nothing on the horizon from Planner OS.")
 else:
