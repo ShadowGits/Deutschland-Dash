@@ -4,15 +4,19 @@ import datetime
 import pandas as pd
 import streamlit as st
 
+from backend.german import track_summary as german_summary
 from backend.planner_api import (
     KEY_ENV_VARS,
+    add_monthly_goal,
     fetch_dashboard_with_status,
     flat_map,
     projects,
     streaks,
     totals,
+    update_monthly_goal,
     upcoming_deadlines,
 )
+from utils.helpers import safe_float
 from utils.secrets import secret as resolve_secret
 from utils.ui import metric_grid, setup_page
 
@@ -32,7 +36,8 @@ def load_data(key: str | None) -> tuple[dict | None, dict | None, str | None]:
     return data.get("snapshot"), flat_map(data), None
 
 
-snapshot, flat, error = load_data(resolve_secret(*KEY_ENV_VARS))
+api_key = resolve_secret(*KEY_ENV_VARS)
+snapshot, flat, error = load_data(api_key)
 
 head = st.columns([0.8, 0.2])
 with head[1]:
@@ -59,18 +64,15 @@ metric_grid({
     "Done last 7 days": total.get("completions_last_7_days", "—"),
 }, 4)
 
-# ----- German A1 quick-glance (hardcoded left=64 until the flat/workbook conflict is resolved) -----
-GERMAN_UNITS_TOTAL = 70
-GERMAN_UNITS_LEFT = 64  # TODO: integrate from flat_map once the doc conflict is reconciled
-german_done = GERMAN_UNITS_TOTAL - GERMAN_UNITS_LEFT
-german_pct = int(german_done / GERMAN_UNITS_TOTAL * 100)
+german_done = max(int(safe_float((flat or {}).get("german_units_total"), 0)) - int(safe_float((flat or {}).get("german_units_left"), 0)), 0)
+gs = german_summary(german_done)
 with st.container(border=True):
     gcol1, gcol2 = st.columns([0.7, 0.3])
     with gcol1:
         st.markdown("**🇩🇪 German A1**")
-        st.progress(german_pct, text=f"{german_done}/{GERMAN_UNITS_TOTAL} units done ({german_pct}%)")
+        st.progress(min(int(gs["pct"]), 100), text=f"{gs['done']}/{gs['total']} units done ({gs['pct']:.0f}%)")
     with gcol2:
-        st.metric("Units left", GERMAN_UNITS_LEFT)
+        st.metric("Units left", gs["left"])
 
 streak_values = streaks(snapshot)
 if streak_values:
@@ -112,7 +114,7 @@ else:
                     if mg:
                         new_desc = st.text_area("Description", mg["description"], key=f"mg_{mg['id']}", height=100)
                         if st.button("Save Updates", key=f"save_mg_{mg['id']}"):
-                            res, err = update_monthly_goal(mg["id"], new_desc, key)
+                            res, err = update_monthly_goal(mg["id"], new_desc, api_key)
                             if err:
                                 st.error(err)
                             else:
@@ -126,7 +128,7 @@ else:
                                 st.error("Description cannot be empty.")
                             else:
                                 month_start = datetime.date.today().replace(day=1).isoformat()
-                                res, err = add_monthly_goal(pid, month_start, new_desc, key)
+                                res, err = add_monthly_goal(pid, month_start, new_desc, api_key)
                                 if err:
                                     st.error(err)
                                 else:

@@ -112,11 +112,10 @@ def fetch_metrics(key: str | None = None, base_url: str | None = None) -> dict[s
 
 
 def flat_map(data: dict[str, Any] | None) -> dict[str, str]:
-    """The API's flat key/value map.
+    """The API's flat key/value map — the single source of truth for track progress.
 
-    Deliberately NOT wired into German progress. `docs/dashboard_integration.md` warns
-    that the flat block's series are not interchangeable with the workbook's
-    `german_units_left`, and the two currently disagree. Reconcile before trusting it.
+    Keys like `german_units_total`, `german_units_left`, `german_target_date` are read
+    directly by the Language page and pace panel.
     """
     raw = (data or {}).get("flat") or {}
     return {str(k): str(v) for k, v in raw.items()}

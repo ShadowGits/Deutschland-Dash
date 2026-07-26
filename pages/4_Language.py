@@ -4,14 +4,28 @@ import pandas as pd
 import streamlit as st
 
 from backend.german import DONE, OVERDUE, TODAY, burndown_series, grammar_ladder, track_summary, unit_table
+from backend.planner_api import KEY_ENV_VARS, fetch_dashboard_with_status, flat_map
 from backend.progress import language_progress
 from config import TEST_STATUS_OPTIONS, TRACK_STATUS_OPTIONS
+from utils.helpers import safe_float
+from utils.secrets import secret as resolve_secret
 from utils.ui import metric_grid, pace_panel, setup_page
 
 db = setup_page("Language", "🇩🇪")
 
-summary = track_summary(db)
-units = unit_table(db)
+
+@st.cache_data(ttl=300, show_spinner="Reading Planner OS…")
+def _load_flat(key: str | None) -> dict[str, str]:
+    data, _ = fetch_dashboard_with_status(key=key)
+    return flat_map(data) if data else {}
+
+
+api_key = resolve_secret(*KEY_ENV_VARS)
+flat = _load_flat(api_key)
+german_done = max(int(safe_float(flat.get("german_units_total"), 0)) - int(safe_float(flat.get("german_units_left"), 0)), 0) if flat else 0
+
+summary = track_summary(german_done)
+units = unit_table(german_done)
 
 st.caption(
     "Daily execution lives in Planner OS — this page is the plan, the grammar ladder, and whether you'll land A1 in time. "
@@ -28,12 +42,12 @@ metric_grid({
 pace_tab, syllabus_tab, grammar_tab, level_tab = st.tabs(["Pace", "Syllabus", "Grammar ladder", "B1 ladder & exam"])
 
 with pace_tab:
-    pace_panel(db, tracks=[("german", "German A1")])
+    pace_panel(flat, tracks=[("german", "German A1")])
 
     if summary["plan_end"]:
         st.caption(f"Plan runs to {summary['plan_end']} · {summary['days_left']} days remaining · 2 units/day, every day.")
 
-    series = burndown_series(db)
+    series = burndown_series(german_done)
     if series.empty:
         st.info("No syllabus scheduled yet.")
     else:
@@ -73,7 +87,7 @@ with syllabus_tab:
 
 with grammar_tab:
     st.caption("The A1 grammar progression in teaching order — use this to revise what you've already covered.")
-    ladder = grammar_ladder(db)
+    ladder = grammar_ladder(german_done)
     covered = ladder[ladder["status"] == DONE]
     ahead = ladder[ladder["status"] != DONE]
 

@@ -27,7 +27,7 @@ metric_grid(metrics, columns=4)
 
 st.subheader("Daily pace")
 st.caption("Live burn-down from Planner OS — are you keeping up with German and math?")
-pace_panel(db)
+pace_panel()
 
 frames = load_frames(db)
 tasks = frames["Study_Log"]

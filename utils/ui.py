@@ -119,31 +119,63 @@ def download_path(path: Path, label: str) -> None:
 
 
 _PACE_COLOR = {"Behind": "🔴", "Tight": "🟠", "On pace": "🟢", "Due": "🔴", "Unknown": "⚪"}
+_DAILY_CAPACITY = {"german": 2, "ignou": 1}
 
 
-def pace_panel(db: ExcelDB, tracks: list[tuple[str, str]] | None = None) -> None:
-    """Render the Planner OS burn-down mirror: pace per track + last-synced note."""
-    from backend.planner_sync import burndown, read_snapshot
+def _burndown(flat: dict[str, str], track: str) -> dict[str, object]:
+    """Compute pace for a track from the API's flat key/value map."""
+    import math
+    from utils.helpers import parse_date, safe_float
 
-    tracks = tracks or [("german", "German A1"), ("ignou", "IGNOU Math")]
-    snap = read_snapshot(db)
-    if not snap:
-        st.info("No Planner OS sync yet. Ask Claude to sync your planner to populate the burn-down.")
+    today = datetime.date.today()
+    total = int(safe_float(flat.get(f"{track}_units_total"), 0))
+    left = int(safe_float(flat.get(f"{track}_units_left"), 0))
+    done = max(total - left, 0)
+    capacity = _DAILY_CAPACITY.get(track, 1)
+
+    target = parse_date(flat.get(f"{track}_target_date"))
+    days_to_target = (target - today).days if target else None
+
+    days_needed = math.ceil(left / capacity) if capacity else left
+    buffer = (days_to_target - days_needed) if days_to_target is not None else None
+
+    if days_to_target is not None and days_to_target <= 0:
+        status = "Due"
+    elif buffer is None:
+        status = "Unknown"
+    elif buffer < 0:
+        status = "Behind"
+    elif buffer <= 2:
+        status = "Tight"
+    else:
+        status = "On pace"
+
+    return {"total": total, "done": done, "left": left, "days_to_target": days_to_target, "buffer_days": buffer, "status": status}
+
+
+def pace_panel(flat: dict[str, str] | None = None, tracks: list[tuple[str, str]] | None = None) -> None:
+    """Render live burn-down from the Planner OS API flat_map."""
+    if not flat:
+        key = resolve_secret(*KEY_ENV_VARS)
+        if key:
+            from backend.planner_api import fetch_dashboard_with_status, flat_map
+            data, _ = fetch_dashboard_with_status(key=key)
+            flat = flat_map(data) if data else {}
+    if not flat:
+        st.info("Planner OS not connected — set the app key to see pace data.")
         return
 
+    tracks = tracks or [("german", "German A1"), ("ignou", "IGNOU Math")]
     cols = st.columns(len(tracks))
     for col, (track, label) in zip(cols, tracks):
-        bd = burndown(snap, track)
+        bd = _burndown(flat, track)
         with col:
+            if not bd["total"]:
+                st.caption(f"{label}: no data from Planner OS")
+                continue
             dot = _PACE_COLOR.get(bd["status"], "⚪")
             st.metric(f"{dot} {label}", f"{bd['left']} left", f"{bd['status']}", delta_color="off")
             if bd["days_to_target"] is not None:
                 buffer = bd["buffer_days"]
                 buffer_txt = f"{buffer} days slack" if buffer is not None and buffer >= 0 else f"{abs(buffer)} days behind"
                 st.caption(f"{bd['done']}/{bd['total']} done · {bd['days_to_target']} days to target · {buffer_txt}")
-            if track == "german" and str(snap.get("german_missed_today", "")).lower() in {"true", "1", "yes"}:
-                st.caption("⚠️ Missed today — a replan will redistribute it.")
-
-    synced = snap.get("last_synced", "—")
-    replan = snap.get("last_replan", "")
-    st.caption(f"Planner OS synced: {synced}" + (f" · last replan: {replan}" if replan else ""))

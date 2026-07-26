@@ -35,7 +35,6 @@ SCHEMA: dict[str, list[str]] = {
     "Milestones": ["milestone", "track", "target_date", "status", "notes"],
     "Finance_Goals": ["goal", "target_amount", "saved_amount", "deadline", "notes"],
     "Finance_Log": ["date", "category", "description", "amount", "currency", "type", "notes"],
-    "Planner_Snapshot": ["metric", "value", "updated_at"],
 }
 
 

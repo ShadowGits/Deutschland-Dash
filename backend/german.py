@@ -1,10 +1,8 @@
-"""German A1 track: the syllabus as data, completion derived from Planner OS.
+"""German A1 track: the syllabus as data, completion from Planner OS API.
 
-Design note: per-unit completion is deliberately NOT stored. Planner OS owns daily
-execution and reports a single `german_units_left` in the snapshot; because the A1
-units are strictly sequential, that one number determines every unit's status. Keeping
-a second copy of "done" in the workbook would let the two drift apart, which is the
-failure mode this project has already been bitten by.
+Per-unit completion is NOT stored in the dashboard. Planner OS owns daily execution;
+the dashboard reads the live count from the API's flat_map. Because the A1 units are
+strictly sequential, a single "done" number determines every unit's status.
 """
 from __future__ import annotations
 
@@ -12,12 +10,11 @@ from datetime import date
 
 import pandas as pd
 
-from backend.excel_db import ExcelDB
-from backend.planner_sync import read_snapshot
 from utils.constants import GERMAN_A1_UNITS
-from utils.helpers import parse_date, safe_float
+from utils.helpers import parse_date
 
 DONE, TODAY, UPCOMING, OVERDUE = "Done", "Today", "Upcoming", "Overdue"
+TOTAL_UNITS = len(GERMAN_A1_UNITS)
 
 
 def syllabus() -> pd.DataFrame:
@@ -25,23 +22,9 @@ def syllabus() -> pd.DataFrame:
     return pd.DataFrame(GERMAN_A1_UNITS, columns=["unit", "topic", "grammar", "scheduled_date"])
 
 
-def units_done(db: ExcelDB) -> int:
-    """How many units Planner OS says are finished (total - left).
-
-    With no snapshot yet (a fresh install), `left` defaults to the full total so this
-    reports 0 done. Defaulting `left` to 0 instead would silently claim the whole
-    syllabus was complete.
-    """
-    snap = read_snapshot(db)
-    total = int(safe_float(snap.get("german_units_total"), len(GERMAN_A1_UNITS)))
-    left = int(safe_float(snap.get("german_units_left"), total))
-    return max(total - left, 0)
-
-
-def unit_table(db: ExcelDB, today: date | None = None) -> pd.DataFrame:
-    """Syllabus plus a derived status column. Status comes from the sequence, not a stored flag."""
+def unit_table(done: int = 0, today: date | None = None) -> pd.DataFrame:
+    """Syllabus plus a derived status column."""
     today = today or date.today()
-    done = units_done(db)
     frame = syllabus()
 
     def status(row: pd.Series) -> str:
@@ -58,22 +41,14 @@ def unit_table(db: ExcelDB, today: date | None = None) -> pd.DataFrame:
     return frame
 
 
-def grammar_ladder(db: ExcelDB) -> pd.DataFrame:
+def grammar_ladder(done: int = 0) -> pd.DataFrame:
     """Grammar points in teaching order, with whether you've reached them yet."""
-    frame = unit_table(db)
+    frame = unit_table(done)
     return frame[["unit", "grammar", "topic", "status"]]
 
 
-def burndown_series(db: ExcelDB, today: date | None = None) -> pd.DataFrame:
-    """Cumulative units: the original schedule vs the pace now required.
-
-    Both series are facts. "Planned" is the schedule as written. "Required now" runs from
-    today's real completed count to the full total by the plan end date — i.e. the line you
-    must actually hold from here. If it climbs more steeply than Planned, you are behind.
-
-    A historical "actual" curve is deliberately absent: Planner OS reports only a current
-    completed count, not per-day history, so any past curve would be invented.
-    """
+def burndown_series(done: int = 0, today: date | None = None) -> pd.DataFrame:
+    """Cumulative units: the original schedule vs the pace now required."""
     today = today or date.today()
     frame = syllabus().copy()
     frame["day"] = frame["scheduled_date"].map(parse_date)
@@ -82,7 +57,7 @@ def burndown_series(db: ExcelDB, today: date | None = None) -> pd.DataFrame:
         return pd.DataFrame(columns=["day", "Planned", "Required now"])
 
     days = list(planned.index)
-    total, done = len(frame), units_done(db)
+    total = len(frame)
     end = days[-1]
     remaining_days = max((end - today).days, 0)
 
@@ -99,12 +74,11 @@ def burndown_series(db: ExcelDB, today: date | None = None) -> pd.DataFrame:
     })
 
 
-def track_summary(db: ExcelDB, today: date | None = None) -> dict[str, object]:
-    """Headline numbers for the German page."""
+def track_summary(done: int = 0, today: date | None = None) -> dict[str, object]:
+    """Headline numbers for the German section."""
     today = today or date.today()
-    frame = unit_table(db, today)
+    frame = unit_table(done, today)
     total = len(frame)
-    done = units_done(db)
     left = total - done
     overdue = int((frame["status"] == OVERDUE).sum())
     plan_end = parse_date(frame["scheduled_date"].iloc[-1]) if total else None
