@@ -64,7 +64,9 @@ metric_grid({
     "Done last 7 days": total.get("completions_last_7_days", "—"),
 }, 4)
 
-german_done = max(int(safe_float((flat or {}).get("german_units_total"), 0)) - int(safe_float((flat or {}).get("german_units_left"), 0)), 0)
+_lang_total = int(safe_float((flat or {}).get("language_units_total"), 0))
+_lang_left = int(safe_float((flat or {}).get("language_units_left"), 0))
+german_done = max(_lang_total - _lang_left, 0) // 2
 gs = german_summary(german_done)
 with st.container(border=True):
     gcol1, gcol2 = st.columns([0.7, 0.3])

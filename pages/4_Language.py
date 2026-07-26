@@ -22,7 +22,9 @@ def _load_flat(key: str | None) -> dict[str, str]:
 
 api_key = resolve_secret(*KEY_ENV_VARS)
 flat = _load_flat(api_key)
-german_done = max(int(safe_float(flat.get("german_units_total"), 0)) - int(safe_float(flat.get("german_units_left"), 0)), 0) if flat else 0
+_lang_total = int(safe_float(flat.get("language_units_total"), 0)) if flat else 0
+_lang_left = int(safe_float(flat.get("language_units_left"), 0)) if flat else 0
+german_done = max(_lang_total - _lang_left, 0) // 2
 
 summary = track_summary(german_done)
 units = unit_table(german_done)
@@ -42,7 +44,7 @@ metric_grid({
 pace_tab, syllabus_tab, grammar_tab, level_tab = st.tabs(["Pace", "Syllabus", "Grammar ladder", "B1 ladder & exam"])
 
 with pace_tab:
-    pace_panel(flat, tracks=[("german", "German A1")])
+    pace_panel(flat, tracks=[("language", "German A1")])
 
     if summary["plan_end"]:
         st.caption(f"Plan runs to {summary['plan_end']} · {summary['days_left']} days remaining · 2 units/day, every day.")

@@ -114,7 +114,7 @@ def fetch_metrics(key: str | None = None, base_url: str | None = None) -> dict[s
 def flat_map(data: dict[str, Any] | None) -> dict[str, str]:
     """The API's flat key/value map — the single source of truth for track progress.
 
-    Keys like `german_units_total`, `german_units_left`, `german_target_date` are read
+    Keys like `language_units_total`, `language_units_left` are read
     directly by the Language page and pace panel.
     """
     raw = (data or {}).get("flat") or {}

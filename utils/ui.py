@@ -119,7 +119,8 @@ def download_path(path: Path, label: str) -> None:
 
 
 _PACE_COLOR = {"Behind": "🔴", "Tight": "🟠", "On pace": "🟢", "Due": "🔴", "Unknown": "⚪"}
-_DAILY_CAPACITY = {"german": 2, "ignou": 1}
+_DAILY_CAPACITY = {"language": 2, "ignou": 1}
+_SESSIONS_PER_UNIT = {"language": 2}
 
 
 def _burndown(flat: dict[str, str], track: str) -> dict[str, object]:
@@ -128,8 +129,9 @@ def _burndown(flat: dict[str, str], track: str) -> dict[str, object]:
     from utils.helpers import parse_date, safe_float
 
     today = datetime.date.today()
-    total = int(safe_float(flat.get(f"{track}_units_total"), 0))
-    left = int(safe_float(flat.get(f"{track}_units_left"), 0))
+    divisor = _SESSIONS_PER_UNIT.get(track, 1)
+    total = int(safe_float(flat.get(f"{track}_units_total"), 0)) // divisor
+    left = int(safe_float(flat.get(f"{track}_units_left"), 0)) // divisor
     done = max(total - left, 0)
     capacity = _DAILY_CAPACITY.get(track, 1)
 
@@ -165,7 +167,7 @@ def pace_panel(flat: dict[str, str] | None = None, tracks: list[tuple[str, str]]
         st.info("Planner OS not connected — set the app key to see pace data.")
         return
 
-    tracks = tracks or [("german", "German A1"), ("ignou", "IGNOU Math")]
+    tracks = tracks or [("language", "German A1"), ("ignou", "IGNOU Math")]
     cols = st.columns(len(tracks))
     for col, (track, label) in zip(cols, tracks):
         bd = _burndown(flat, track)
