@@ -1,65 +1,36 @@
-# Deutschland Dash
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-A local-first dashboard for tracking a move to Germany for a Master's degree — built with Streamlit on top of a single Excel workbook. It covers the whole journey: German language study, maths preparation, research, documents and apostilles, tests, university shortlisting, applications, finance, and the visa file.
+## Getting Started
 
-No authentication, cloud service, Docker, or database server. Everything runs locally against one `.xlsx` file.
-
-## Installation
+First, run the development server:
 
 ```bash
-pip install -r requirements.txt
-streamlit run app.py
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-The workbook `data/math_database.xlsx` is created automatically on first launch, seeded with a document checklist, an A1→B1 language ladder, a milestone skeleton, and finance goals. It is **not** committed to this repository — it holds personal records.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Requirements
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-Python 3.12+ · Streamlit · Pandas · Plotly · OpenPyXL · NumPy · ReportLab
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Pages
+## Learn More
 
-| Page | Contents |
-|---|---|
-| **Home** (`app.py`) | Countdown to intake and to applications opening, per-track progress, upcoming deadlines, daily pace |
-| **Study** | Planner, curriculum, spaced-repetition revision, problem log, books, notes |
-| **Research** | Papers, internship pipeline (professors + applications), maths project |
-| **Germany** | Documents and apostilles, tests, visa and passport steps |
-| **German** | A1 syllabus, grammar ladder, pace burn-up, B1 ladder and exams |
-| **Applications** | College shortlist, milestone timeline, SOP builder |
-| **Finance** | Savings goals (blocked account, fees, flights) and a ledger |
-| **Settings** | Target dates, preferences, exports |
+To learn more about Next.js, take a look at the following resources:
 
-## Architecture
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-- `app.py` — Home dashboard and entry point.
-- `pages/` — one file per section, each grouping related trackers into tabs.
-- `backend/excel_db.py` — workbook creation, non-destructive schema migration, reads/writes.
-- `backend/german.py` — the A1 syllabus as data; unit status derived from the planner snapshot.
-- `backend/planner_sync.py` — bridge to the external planner: snapshot storage and burn-down maths.
-- `backend/scheduler.py` — daily task generation and spaced-repetition intervals.
-- `backend/analytics.py`, `backend/progress.py` — streaks, hours, per-track percentages.
-- `backend/charts.py`, `backend/export.py` — charts, and CSV/Excel/Markdown/PDF export.
-- `utils/` — constants (including the 70-unit German A1 syllabus), helpers, shared UI.
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Design notes
+## Deploy on Vercel
 
-**Intelligence lives outside the code; rules live inside it.** Breaking goals into daily units and replanning when days slip is done by an assistant against an external planner. This repository holds the deterministic half: storing the plan, tracking state, and computing pace.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-**Single source of truth for progress.** The German A1 units are strictly sequential, so per-unit completion is never stored here — it is derived from one number (units remaining) reported by the planner. Keeping a second copy of "done" in the workbook would let the two drift apart.
-
-**Honest charts.** The pace chart plots the original schedule against the rate now required to finish on time. It deliberately does not draw a historical "actual" curve, because the planner reports only a current count, not per-day history.
-
-## Scripts
-
-`scripts/build_a1_plan.py` generates the 70-unit A1 schedule (2 units/day, each paired with a grammar focus) as JSON for bulk import into a planner. It reads a CSV of unit names:
-
-```bash
-DUOLINGO_UNITS_CSV=/path/to/duolingo_units.csv python scripts/build_a1_plan.py
-```
-
-## Workbook sheets
-
-`Study_Log`, `Topics`, `Subjects`, `Curriculum`, `Revision`, `Problems`, `Books`, `Projects`, `Research_Papers`, `Professors`, `Applications`, `Goals`, `Notes`, `Settings`, `Analytics_Cache`, `Germany_Documents`, `Tests`, `Language`, `Colleges`, `Milestones`, `Finance_Goals`, `Finance_Log`, `Planner_Snapshot`.
-
-Adding columns in code preserves existing rows — sheets are migrated by adding the missing columns only.
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

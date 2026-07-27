@@ -1,0 +1,53 @@
+import { revalidatePath } from 'next/cache';
+
+const BASE_URL = process.env.NEXT_PUBLIC_PLANNER_API_URL || "https://planner-os-api-645411441153.us-central1.run.app";
+const APP_KEY = process.env.PLANNER_APP_KEY;
+
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
+export async function makeRequest<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T | null> {
+  const url = `${BASE_URL.replace(/\/$/, '')}${path}`;
+  const headers = new Headers(options.headers);
+  headers.set('Accept', 'application/json');
+  
+  if (APP_KEY) {
+    headers.set('X-App-Key', APP_KEY);
+  }
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      cache: 'no-store'
+    });
+
+    if (!res.ok) {
+      console.error(`API Error HTTP ${res.status} on ${path}`);
+      return null;
+    }
+
+    const payload: ApiResponse<T> = await res.json();
+    if (!payload.success) {
+      console.error(`API reported failure: ${payload.message}`);
+      return null;
+    }
+
+    return payload.data;
+  } catch (error) {
+    console.error(`Fetch failed for ${path}:`, error);
+    return null;
+  }
+}
+
+// Fetch Functions (Server-side)
+export async function fetchMetrics() {
+  const data = await makeRequest<{ snapshot: any, flat: any }>('/v2/dashboard/metrics');
+  return data?.snapshot || null;
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "math-dashboard",
+      "runtimeExecutable": "/Users/sparry00/Claude Code/shared-venv/bin/streamlit",
+      "runtimeArgs": ["run", "app.py", "--server.port", "8501"],
+      "port": 8501
+    }
+  ]
+}
