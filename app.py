@@ -1,7 +1,5 @@
 import streamlit as st
 
-st.set_page_config(page_title="MathOS", page_icon="∑", layout="wide", initial_sidebar_state="expanded")
-
 pages = {
     "Deutschland-Dash": [
         st.Page("app_pages/0_Dashboard.py", title="Dashboard", icon=":material/dashboard:"),
@@ -22,4 +20,5 @@ pages = {
 }
 
 pg = st.navigation(pages)
+st.set_page_config(page_title="MathOS", page_icon="∑", layout="wide", initial_sidebar_state="expanded")
 pg.run()
