@@ -3,7 +3,7 @@ import streamlit as st
 pages = {
     "Deutschland-Dash": [
         st.Page("app_pages/0_Dashboard.py", title="Dashboard", icon=":material/dashboard:"),
-        st.Page("app_pages/1_Study.py", title="Study", icon="π"),
+        st.Page("app_pages/1_Study.py", title="Study", icon=":material/school:"),
         st.Page("app_pages/2_Internship_and_Project.py", title="Internship & Project", icon="💼"),
         st.Page("app_pages/3_Germany.py", title="Germany", icon="🇩🇪"),
         st.Page("app_pages/4_Language.py", title="Language", icon="🗣️"),
