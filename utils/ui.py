@@ -11,7 +11,7 @@ import streamlit as st
 from backend.excel_db import ExcelDB
 from config import APP_NAME, ASSETS_DIR
 from utils.helpers import contains_text
-from backend.planner_api import KEY_ENV_VARS, fetch_dashboard_with_status, add_monthly_goal, update_monthly_goal, projects as get_projects
+from backend.planner_api import KEY_ENV_VARS, fetch_dashboard_with_status, add_monthly_goal, update_monthly_goal, delete_monthly_goal, projects as get_projects
 from utils.secrets import secret as resolve_secret
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -35,43 +35,101 @@ def setup_page(title: str, icon: str = "∑") -> ExcelDB:
         if project:
             mg = project.get("monthly_goal")
             pid = project["id"]
-            with st.expander("Monthly Goal", expanded=False):
-                if mg:
-                    new_desc = st.text_area("Description", mg["description"], key=f"mg_{mg['id']}", height=100)
-                    if st.button("Save Updates", key=f"save_mg_{mg['id']}"):
-                        res, err = update_monthly_goal(mg["id"], new_desc, key)
-                        if err:
-                            st.error(err)
-                        else:
-                            st.success("Saved!")
-                            _load_planner_os_projects.clear()
-                            st.rerun()
-                else:
-                    today = datetime.date.today()
-                    month_options = []
-                    for i in range(7):
-                        m = today.month + i
-                        y = today.year + (m - 1) // 12
-                        m = (m - 1) % 12 + 1
-                        month_options.append(datetime.date(y, m, 1))
-                    selected_month = st.selectbox(
-                        "Month",
-                        month_options,
-                        format_func=lambda d: d.strftime("%B %Y"),
-                        key=f"month_sel_{pid}",
-                    )
-                    new_desc = st.text_area("Description", placeholder="Enter goal for this month...", key=f"new_mg_{pid}", height=100)
-                    if st.button("Add Goal", key=f"add_mg_{pid}"):
-                        if not new_desc.strip():
-                            st.error("Description cannot be empty.")
-                        else:
-                            res, err = add_monthly_goal(pid, selected_month.isoformat(), new_desc, key)
+            st.subheader("Monthly Goals")
+            
+            goals = project.get("monthly_goals", [])
+            # Fallback for backward compatibility while old snapshot is cached
+            if not goals and project.get("monthly_goal"):
+                goals = [project["monthly_goal"]]
+
+            import pandas as pd
+            if goals:
+                df = pd.DataFrame(goals)[["id", "month", "description", "status"]]
+            else:
+                df = pd.DataFrame(columns=["id", "month", "description", "status"])
+
+            # Month options (past 2 months + current + next 6)
+            today = datetime.date.today()
+            month_options = []
+            for i in range(-2, 7):
+                m = today.month + i
+                y = today.year + (m - 1) // 12
+                m = (m - 1) % 12 + 1
+                month_options.append(datetime.date(y, m, 1).isoformat())
+
+            # Highlight past months visually using pandas Styler if supported, 
+            # but st.data_editor styling with Styler disables editing in Streamlit < 1.30
+            # So we will just show them in the table.
+            
+            editor_key = f"goals_editor_{pid}"
+            
+            with st.form(key=f"goals_form_{pid}", border=False):
+                st.data_editor(
+                    df,
+                    column_config={
+                        "id": None, # hidden
+                        "month": st.column_config.SelectboxColumn(
+                            "Month",
+                            options=month_options,
+                            required=True,
+                            width="medium",
+                        ),
+                        "description": st.column_config.TextColumn(
+                            "Description",
+                            required=True,
+                            width="large",
+                        ),
+                        "status": st.column_config.TextColumn(
+                            "Status",
+                            disabled=True,
+                            width="small"
+                        )
+                    },
+                    num_rows="dynamic",
+                    key=editor_key,
+                    hide_index=True,
+                    use_container_width=True,
+                )
+                
+                submitted = st.form_submit_button("Save Changes")
+                if submitted:
+                    changes = st.session_state.get(editor_key, {})
+                    added = changes.get("added_rows", [])
+                    edited = changes.get("edited_rows", {})
+                    deleted = changes.get("deleted_rows", [])
+                    
+                    has_error = False
+                    
+                    # 1. Adds
+                    for add in added:
+                        if "month" in add and "description" in add:
+                            _, err = add_monthly_goal(pid, add["month"], add["description"], key)
                             if err:
                                 st.error(err)
-                            else:
-                                st.success("Goal added!")
-                                _load_planner_os_projects.clear()
-                                st.rerun()
+                                has_error = True
+                    
+                    # 2. Edits
+                    for row_idx_str, edits in edited.items():
+                        row_idx = int(row_idx_str)
+                        goal_id = df.iloc[row_idx]["id"]
+                        if "description" in edits:
+                            _, err = update_monthly_goal(goal_id, edits["description"], key)
+                            if err:
+                                st.error(err)
+                                has_error = True
+                    
+                    # 3. Deletes
+                    for row_idx in deleted:
+                        goal_id = df.iloc[row_idx]["id"]
+                        _, err = delete_monthly_goal(goal_id, key)
+                        if err:
+                            st.error(err)
+                            has_error = True
+                    
+                    if not has_error and (added or edited or deleted):
+                        st.success("Goals updated successfully!")
+                        _load_planner_os_projects.clear()
+                        st.rerun()
 
     db = ExcelDB()
     with st.sidebar.expander("Global Search"):

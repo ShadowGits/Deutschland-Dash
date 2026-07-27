@@ -215,3 +215,9 @@ def add_monthly_goal(project_id: str, month: str, description: str, key: str | N
         "description": description
     }
     return _make_request("POST", path, payload, key=key)
+
+
+def delete_monthly_goal(goal_id: str, key: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
+    """Delete a monthly goal."""
+    path = f"/v2/goals/monthly/{goal_id}"
+    return _make_request("DELETE", path, {}, key=key)
