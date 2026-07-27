@@ -47,13 +47,25 @@ def setup_page(title: str, icon: str = "∑") -> ExcelDB:
                             _load_planner_os_projects.clear()
                             st.rerun()
                 else:
+                    today = datetime.date.today()
+                    month_options = []
+                    for i in range(7):
+                        m = today.month + i
+                        y = today.year + (m - 1) // 12
+                        m = (m - 1) % 12 + 1
+                        month_options.append(datetime.date(y, m, 1))
+                    selected_month = st.selectbox(
+                        "Month",
+                        month_options,
+                        format_func=lambda d: d.strftime("%B %Y"),
+                        key=f"month_sel_{pid}",
+                    )
                     new_desc = st.text_area("Description", placeholder="Enter goal for this month...", key=f"new_mg_{pid}", height=100)
                     if st.button("Add Goal", key=f"add_mg_{pid}"):
                         if not new_desc.strip():
                             st.error("Description cannot be empty.")
                         else:
-                            month_start = datetime.date.today().replace(day=1).isoformat()
-                            res, err = add_monthly_goal(pid, month_start, new_desc, key)
+                            res, err = add_monthly_goal(pid, selected_month.isoformat(), new_desc, key)
                             if err:
                                 st.error(err)
                             else:
