@@ -22,12 +22,9 @@ def _load_planner_os_projects(key: str | None) -> list[dict]:
 
 
 def setup_page(title: str, icon: str = "∑") -> ExcelDB:
-    st.set_page_config(page_title=f"{title} · {APP_NAME}", page_icon=icon, layout="wide", initial_sidebar_state="expanded")
     css_path = ASSETS_DIR / "styles.css"
     if css_path.exists():
         st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-    st.sidebar.title("MathOS")
-    st.sidebar.caption("Germany 2027 command center")
     st.title(title)
     
     if title in ["Study", "Internship and Project", "Germany", "Language", "Colleges", "Finance", "Fitness", "Piano", "Reading"]:
