@@ -56,3 +56,23 @@ export async function fetchWeekView(dateStr?: string) {
   const path = dateStr ? `/v2/week?date=${dateStr}` : '/v2/week';
   return await makeRequest<any>(path);
 }
+
+export async function fetchStudyTopics() {
+  const res = await makeRequest<{ topics: any[] }>('/v2/study/topics');
+  return res?.topics || [];
+}
+
+export async function fetchBooks() {
+  const res = await makeRequest<{ books: any[] }>('/v2/books');
+  return res?.books || [];
+}
+
+export async function fetchGermanyDocuments() {
+  const res = await makeRequest<{ documents: any[] }>('/v2/germany/documents');
+  return res?.documents || [];
+}
+
+export async function fetchFinanceGoals() {
+  const res = await makeRequest<{ goals: any[] }>('/v2/finance/goals');
+  return res?.goals || [];
+}

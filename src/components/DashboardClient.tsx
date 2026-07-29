@@ -7,14 +7,29 @@ import MonthlyGoalsTable from '@/components/MonthlyGoalsTable';
 import Sidebar from '@/components/Sidebar';
 import ProjectFilesWidget from '@/components/ProjectFilesWidget';
 import DocumentViewerModal from '@/components/DocumentViewerModal';
+import StudyWidget from '@/components/widgets/StudyWidget';
+import BooksWidget from '@/components/widgets/BooksWidget';
+import GermanyDocsWidget from '@/components/widgets/GermanyDocsWidget';
+import FinanceGoalsWidget from '@/components/widgets/FinanceGoalsWidget';
 import { useSearchParams } from 'next/navigation';
 
 interface DashboardClientProps {
   metrics: any;
   projects: any[];
+  studyTopics?: any[];
+  books?: any[];
+  germanyDocs?: any[];
+  financeGoals?: any[];
 }
 
-export default function DashboardClient({ metrics, projects }: DashboardClientProps) {
+export default function DashboardClient({
+  metrics,
+  projects,
+  studyTopics = [],
+  books = [],
+  germanyDocs = [],
+  financeGoals = []
+}: DashboardClientProps) {
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('projectId') || (projects.length > 0 ? projects[0].id : undefined);
   
@@ -33,6 +48,8 @@ export default function DashboardClient({ metrics, projects }: DashboardClientPr
   const activeProject = activeProjectId 
     ? projects.find((p: any) => p.id === activeProjectId)
     : projects[0];
+
+  const projectName = activeProject?.name || '';
 
   return (
     <div className="flex h-screen bg-[#f4f6fa] overflow-hidden font-sans">
@@ -114,6 +131,23 @@ export default function DashboardClient({ metrics, projects }: DashboardClientPr
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Dedicated Domain Widgets */}
+              {projectName === 'Study' && studyTopics.length > 0 && (
+                <StudyWidget topics={studyTopics} />
+              )}
+
+              {projectName === 'Reading' && books.length > 0 && (
+                <BooksWidget books={books} />
+              )}
+
+              {projectName === 'Germany' && germanyDocs.length > 0 && (
+                <GermanyDocsWidget documents={germanyDocs} />
+              )}
+
+              {projectName === 'Finance' && financeGoals.length > 0 && (
+                <FinanceGoalsWidget goals={financeGoals} />
+              )}
 
               {/* Monthly Goals Section */}
               <div className="grid grid-cols-1 gap-6">

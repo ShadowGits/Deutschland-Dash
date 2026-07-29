@@ -1,11 +1,17 @@
-import { fetchMetrics } from '@/lib/api';
+import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetchFinanceGoals } from '@/lib/api';
 import DashboardClient from '@/components/DashboardClient';
 import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const metrics = await fetchMetrics();
+  const [metrics, studyTopics, books, germanyDocs, financeGoals] = await Promise.all([
+    fetchMetrics(),
+    fetchStudyTopics(),
+    fetchBooks(),
+    fetchGermanyDocuments(),
+    fetchFinanceGoals()
+  ]);
   
   if (!metrics) {
     return (
@@ -19,7 +25,14 @@ export default async function DashboardPage() {
 
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading dashboard...</div>}>
-      <DashboardClient metrics={metrics} projects={projects} />
+      <DashboardClient 
+        metrics={metrics} 
+        projects={projects}
+        studyTopics={studyTopics}
+        books={books}
+        germanyDocs={germanyDocs}
+        financeGoals={financeGoals}
+      />
     </Suspense>
   );
 }
