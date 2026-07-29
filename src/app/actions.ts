@@ -47,3 +47,24 @@ export async function updateTaskStatus(taskId: string, done: boolean) {
   revalidatePath('/'); // or path to week view
   return res !== null;
 }
+
+export async function createProjectDocument(projectId: string, name: string, fileType: 'text' | 'excel') {
+  const payload = { name, file_type: fileType };
+  const res = await makeRequest<{ file: any }>(`/v2/projects/${projectId}/files/create-document`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  revalidatePath('/');
+  return res?.file || null;
+}
+
+export async function deleteProjectFile(projectId: string, fileId: string) {
+  const res = await makeRequest(`/v2/projects/${projectId}/files/${fileId}`, {
+    method: 'DELETE'
+  });
+  
+  revalidatePath('/');
+  return res !== null;
+}
