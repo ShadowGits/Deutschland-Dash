@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { FileText, Table, Plus, Trash2, Eye, ExternalLink, Loader2, Folder } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { FileText, Table, Plus, Upload, Trash2, Eye, ExternalLink, Loader2, Folder } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createProjectDocument, deleteProjectFile } from '@/app/actions';
+import { createProjectDocument, uploadProjectFile, deleteProjectFile } from '@/app/actions';
 
 interface ProjectFilesWidgetProps {
   projectId: string;
@@ -18,6 +18,8 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
   const [docType, setDocType] = useState<'text' | 'excel'>('text');
   const [docName, setDocName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreate = async () => {
     if (!docName.trim()) return;
@@ -37,6 +39,27 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const newFile = await uploadProjectFile(projectId, formData);
+      if (newFile) {
+        setFiles(prev => [...prev, newFile]);
+      }
+    } catch (err) {
+      console.error("Failed to upload file", err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleDelete = async (fileId: string) => {
     try {
       const success = await deleteProjectFile(projectId, fileId);
@@ -50,6 +73,15 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
 
   return (
     <div className="space-y-4">
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        className="hidden"
+        accept=".txt,.doc,.docx,.pdf,.xls,.xlsx,.csv"
+      />
+
       {/* Action Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-50/80 p-4 rounded-xl border border-gray-100">
         <div className="flex items-center space-x-2 text-gray-700 font-medium text-sm">
@@ -58,6 +90,17 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
         </div>
 
         <div className="flex items-center space-x-2">
+          <Button
+            size="sm"
+            variant="default"
+            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
+            Upload File
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
@@ -69,7 +112,7 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
             }}
           >
             <Plus size={14} className="mr-1" />
-            + Text Doc
+            + New Doc
           </Button>
 
           <Button
@@ -83,7 +126,7 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
             }}
           >
             <Plus size={14} className="mr-1" />
-            + Spreadsheet
+            + New Sheet
           </Button>
         </div>
       </div>

@@ -60,6 +60,32 @@ export async function createProjectDocument(projectId: string, name: string, fil
   return res?.file || null;
 }
 
+export async function uploadProjectFile(projectId: string, formData: FormData) {
+  const baseUrl = process.env.PLANNER_API_URL || 'https://planner-os-api-645411441153.us-central1.run.app';
+  const apiKey = process.env.PLANNER_APP_KEY || '';
+
+  try {
+    const response = await fetch(`${baseUrl}/v2/projects/${projectId}/files/upload`, {
+      method: 'POST',
+      headers: {
+        'X-App-Key': apiKey,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    revalidatePath('/');
+    return data?.data?.file || null;
+  } catch (err) {
+    console.error('Upload project file error:', err);
+    return null;
+  }
+}
+
 export async function deleteProjectFile(projectId: string, fileId: string) {
   const res = await makeRequest(`/v2/projects/${projectId}/files/${fileId}`, {
     method: 'DELETE'
