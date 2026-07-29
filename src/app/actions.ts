@@ -35,3 +35,15 @@ export async function deleteMonthlyGoal(goalId: string) {
   revalidatePath('/');
   return res !== null;
 }
+
+export async function updateTaskStatus(taskId: string, done: boolean) {
+  const payload = { done };
+  const res = await makeRequest(`/v2/day/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  revalidatePath('/'); // or path to week view
+  return res !== null;
+}

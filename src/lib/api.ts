@@ -51,3 +51,8 @@ export async function fetchMetrics() {
   const data = await makeRequest<{ snapshot: any, flat: any }>('/v2/dashboard/metrics');
   return data?.snapshot || null;
 }
+
+export async function fetchWeekView(dateStr?: string) {
+  const path = dateStr ? `/v2/week?date=${dateStr}` : '/v2/week';
+  return await makeRequest<any>(path);
+}

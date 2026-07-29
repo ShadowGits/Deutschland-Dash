@@ -1,15 +1,15 @@
 'use client';
 
-import Link from 'next/link';
-import { LayoutDashboard, BookOpen, Briefcase, Globe, Languages, GraduationCap, LineChart, Dumbbell, Music, BookOpenCheck } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Briefcase, Globe, Languages, GraduationCap, LineChart, Dumbbell, Music, BookOpenCheck, Settings, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
   projects: any[];
   activeProjectId?: string;
+  onProjectSelect: (projectId: string) => void;
 }
 
-export default function Sidebar({ projects, activeProjectId }: SidebarProps) {
+export default function Sidebar({ projects, activeProjectId, onProjectSelect }: SidebarProps) {
   // Map standard project names to icons
   const iconMap: Record<string, React.ElementType> = {
     'Study': BookOpen,
@@ -23,8 +23,43 @@ export default function Sidebar({ projects, activeProjectId }: SidebarProps) {
     'Reading': BookOpenCheck,
   };
 
-  const dashboardProjects = projects.filter(p => !p.name.endsWith('(Non-Dash)'));
-  const nonDashProjects = projects.filter(p => p.name.endsWith('(Non-Dash)'));
+  const deutschlandDashNames = ['Study', 'Internship and Project', 'Germany', 'Language', 'Colleges', 'Finance'];
+  const personalNames = ['Fitness', 'Piano', 'Reading'];
+
+  const getProjectByName = (name: string) => projects.find(p => p.name === name || p.name === `${name} (Non-Dash)`);
+
+  const renderProjectLink = (name: string, Icon: React.ElementType) => {
+    const project = getProjectByName(name);
+    if (!project) return null;
+    
+    const isActive = project.id === activeProjectId;
+    
+    return (
+      <button
+        key={project.id}
+        onClick={() => onProjectSelect(project.id)}
+        className={cn(
+          "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left",
+          isActive 
+            ? "bg-[#1e2646] text-white" 
+            : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
+        )}
+      >
+        <Icon 
+          className={cn(
+            "mr-3 flex-shrink-0 h-5 w-5",
+            isActive ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
+          )} 
+        />
+        {name}
+        {project.status === 'done' && (
+          <span className="ml-auto bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full">
+            Done
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <aside className="w-64 bg-[#12193b] text-[#aab2c8] flex flex-col h-full border-r border-[#1e2646]">
@@ -38,74 +73,36 @@ export default function Sidebar({ projects, activeProjectId }: SidebarProps) {
       <div className="flex-1 overflow-y-auto py-6 px-4">
         <div className="mb-8">
           <p className="px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">
-            Dashboard
+            Deutschland-Dash
           </p>
           <nav className="space-y-1">
-            {dashboardProjects.map(project => {
-              const Icon = iconMap[project.name] || LayoutDashboard;
-              const isActive = project.id === activeProjectId;
-              return (
-                <Link
-                  key={project.id}
-                  href={`/?projectId=${project.id}`}
-                  className={cn(
-                    "flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group",
-                    isActive 
-                      ? "bg-[#1e2646] text-white" 
-                      : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
-                  )}
-                >
-                  <Icon 
-                    className={cn(
-                      "mr-3 flex-shrink-0 h-5 w-5",
-                      isActive ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
-                    )} 
-                  />
-                  {project.name}
-                  {project.status === 'done' && (
-                    <span className="ml-auto bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full">
-                      Done
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+            {/* We will add real Dashboard and Week View routing later. For now, they are static UI elements */}
+            <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white">
+              <LayoutDashboard className="mr-3 flex-shrink-0 h-5 w-5 text-[#64748b] group-hover:text-emerald-400" />
+              Dashboard
+            </button>
+            
+            {deutschlandDashNames.map(name => renderProjectLink(name, iconMap[name] || LayoutDashboard))}
+
+            <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white mt-4">
+              <Calendar className="mr-3 flex-shrink-0 h-5 w-5 text-[#64748b] group-hover:text-emerald-400" />
+              Week View
+            </button>
+            <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white">
+              <Settings className="mr-3 flex-shrink-0 h-5 w-5 text-[#64748b] group-hover:text-emerald-400" />
+              Settings
+            </button>
           </nav>
         </div>
 
-        {nonDashProjects.length > 0 && (
-          <div>
-            <p className="px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">
-              Other Projects
-            </p>
-            <nav className="space-y-1">
-              {nonDashProjects.map(project => {
-                const Icon = LayoutDashboard;
-                const isActive = project.id === activeProjectId;
-                return (
-                  <Link
-                    key={project.id}
-                    href={`/?projectId=${project.id}`}
-                    className={cn(
-                      "flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group",
-                      isActive 
-                        ? "bg-[#1e2646] text-white" 
-                        : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
-                    )}
-                  >
-                    <Icon 
-                      className={cn(
-                        "mr-3 flex-shrink-0 h-5 w-5",
-                        isActive ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
-                      )} 
-                    />
-                    {project.name.replace(' (Non-Dash)', '')}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        )}
+        <div>
+          <p className="px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">
+            Non-Dash (Persona)
+          </p>
+          <nav className="space-y-1">
+            {personalNames.map(name => renderProjectLink(name, iconMap[name] || LayoutDashboard))}
+          </nav>
+        </div>
       </div>
       
       <div className="p-4 border-t border-[#1e2646]">
