@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { FileText, Table, Plus, Upload, Trash2, Eye, ExternalLink, Loader2, Folder } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { FileText, Table, Plus, Upload, Trash2, Eye, ExternalLink, Loader2, Folder, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createProjectDocument, uploadProjectFile, deleteProjectFile } from '@/app/actions';
+import { createProjectDocument, uploadProjectFile, deleteProjectFile, getProjectFiles } from '@/app/actions';
 
 interface ProjectFilesWidgetProps {
   projectId: string;
@@ -19,7 +19,18 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
   const [docName, setDocName] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getProjectFiles(projectId).then(fetched => {
+      if (!cancelled && fetched.length > 0) {
+        setFiles(fetched);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   const handleCreate = async () => {
     if (!docName.trim()) return;
@@ -44,16 +55,19 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
     if (!selectedFile) return;
 
     setUploading(true);
+    setUploadError(null);
     const formData = new FormData();
     formData.append('file', selectedFile);
 
     try {
-      const newFile = await uploadProjectFile(projectId, formData);
-      if (newFile) {
-        setFiles(prev => [...prev, newFile]);
+      const result = await uploadProjectFile(projectId, formData);
+      if (result.error) {
+        setUploadError(result.error);
+      } else if (result.file) {
+        setFiles(prev => [...prev, result.file]);
       }
     } catch (err) {
-      console.error("Failed to upload file", err);
+      setUploadError('Failed to upload file');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -130,6 +144,15 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
           </Button>
         </div>
       </div>
+
+      {/* Upload Error */}
+      {uploadError && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <AlertCircle size={16} className="flex-shrink-0" />
+          <span>{uploadError}</span>
+          <button onClick={() => setUploadError(null)} className="ml-auto text-red-400 hover:text-red-600">&times;</button>
+        </div>
+      )}
 
       {/* Inline Create Form Modal/Box */}
       {isCreating && (
