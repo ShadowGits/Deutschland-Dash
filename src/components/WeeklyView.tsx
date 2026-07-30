@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, Flame, Target } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Flame, Target, RefreshCw } from 'lucide-react';
 import { format, parseISO, isSameDay, addDays } from 'date-fns';
 import { updateTaskStatus } from '@/lib/api';
 
@@ -54,6 +54,13 @@ export default function WeeklyView({ weekData }: WeeklyViewProps) {
           <CalendarIcon className="mr-3 text-indigo-500" size={28} />
           Weekly Plan
         </h2>
+        <button 
+          onClick={() => window.location.reload()}
+          className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-md font-medium transition-colors text-sm"
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh
+        </button>
       </div>
 
       {/* Goals Banners */}
@@ -116,7 +123,7 @@ export default function WeeklyView({ weekData }: WeeklyViewProps) {
           });
 
           return (
-            <Card key={dateStr} className={`shadow-sm border-0 rounded-xl overflow-hidden h-[calc(100vh-320px)] min-h-[500px] flex flex-col ${isToday ? 'ring-2 ring-indigo-500/30 shadow-indigo-100/50' : ''}`}>
+            <Card key={dateStr} className={`shadow-sm border-0 rounded-xl flex flex-col ${isToday ? 'ring-2 ring-indigo-500/30 shadow-indigo-100/50' : ''}`}>
               <CardHeader className={`px-4 py-3 border-b ${isToday ? 'bg-indigo-50/80' : 'bg-gray-50/50'}`}>
                 <div className="flex flex-col items-center">
                   <span className={`text-xs font-bold uppercase tracking-wider mb-1 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>
@@ -131,7 +138,7 @@ export default function WeeklyView({ weekData }: WeeklyViewProps) {
                 </div>
               </CardHeader>
               
-              <CardContent className="p-3 flex-1 bg-white/50 space-y-3 overflow-y-auto scrollbar-thin">
+              <CardContent className="p-3 flex-1 bg-white/50 space-y-3">
                 {dayTasks.map(task => (
                   <div 
                     key={task.id} 
