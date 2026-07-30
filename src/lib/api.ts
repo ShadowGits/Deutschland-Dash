@@ -76,3 +76,8 @@ export async function fetchFinanceGoals() {
   const res = await makeRequest<{ goals: any[] }>('/v2/finance/goals');
   return res?.goals || [];
 }
+
+export async function fetchProjectFiles(projectId: string) {
+  const res = await makeRequest<{ files: any[] }>(`/v2/projects/${projectId}/files`);
+  return res?.files || [];
+}

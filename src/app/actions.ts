@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { makeRequest } from '@/lib/api';
+import { makeRequest, fetchProjectFiles } from '@/lib/api';
 
 export async function addMonthlyGoal(projectId: string, month: string, description: string) {
   const payload = { project_id: projectId, month, description };
@@ -60,12 +60,16 @@ export async function createProjectDocument(projectId: string, name: string, fil
   return res?.file || null;
 }
 
-export async function uploadProjectFile(projectId: string, formData: FormData) {
-  const baseUrl = process.env.PLANNER_API_URL || 'https://planner-os-api-645411441153.us-central1.run.app';
+export async function getProjectFiles(projectId: string) {
+  return await fetchProjectFiles(projectId);
+}
+
+export async function uploadProjectFile(projectId: string, formData: FormData): Promise<{ file: any | null; error: string | null }> {
+  const baseUrl = process.env.NEXT_PUBLIC_PLANNER_API_URL || 'https://planner-os-api-645411441153.us-central1.run.app';
   const apiKey = process.env.PLANNER_APP_KEY || '';
 
   try {
-    const response = await fetch(`${baseUrl}/v2/projects/${projectId}/files/upload`, {
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/v2/projects/${projectId}/files/upload`, {
       method: 'POST',
       headers: {
         'X-App-Key': apiKey,
@@ -74,15 +78,20 @@ export async function uploadProjectFile(projectId: string, formData: FormData) {
     });
 
     if (!response.ok) {
-      throw new Error(`Upload failed with status ${response.status}`);
+      const text = await response.text().catch(() => '');
+      return { file: null, error: `Upload failed (${response.status}): ${text || response.statusText}` };
     }
 
     const data = await response.json();
+    if (!data?.success) {
+      return { file: null, error: data?.message || 'Upload failed' };
+    }
+
     revalidatePath('/');
-    return data?.data?.file || null;
+    return { file: data?.data?.file || null, error: null };
   } catch (err) {
     console.error('Upload project file error:', err);
-    return null;
+    return { file: null, error: err instanceof Error ? err.message : 'Upload failed unexpectedly' };
   }
 }
 
