@@ -77,7 +77,31 @@ export default function DashboardClient({
 
         <main className="p-8">
           {activeProjectId === 'dashboard' ? (
-            <GlobalDashboard metrics={metrics} projects={projects} monthlyGoals={weekData?.monthly_goals || []} />
+            <div className="space-y-6">
+              <GlobalDashboard metrics={metrics} projects={projects} monthlyGoals={weekData?.monthly_goals || []} />
+              
+              {/* Project Files & Google Drive Documents Section (Main Project) */}
+              {projects.length > 0 && (
+                <div className="grid grid-cols-1 gap-6">
+                  <Card className="shadow-sm border-0 rounded-xl">
+                    <CardHeader className="border-b bg-white rounded-t-xl px-6 py-5">
+                      <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                        <Folder className="mr-2 text-emerald-600" size={20} />
+                        Project Documents & Google Drive Files
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <ProjectFilesWidget
+                        key={projects[0].id}
+                        projectId={projects[0].id}
+                        files={projects[0].files || []}
+                        onViewFile={setSelectedViewFile}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
           ) : activeProjectId === 'weekly' ? (
             <WeeklyView weekData={weekData} projects={projects} />
           ) : activeProject ? (
