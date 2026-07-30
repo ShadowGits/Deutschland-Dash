@@ -11,6 +11,8 @@ import StudyWidget from '@/components/widgets/StudyWidget';
 import BooksWidget from '@/components/widgets/BooksWidget';
 import GermanyDocsWidget from '@/components/widgets/GermanyDocsWidget';
 import FinanceGoalsWidget from '@/components/widgets/FinanceGoalsWidget';
+import GlobalDashboard from '@/components/GlobalDashboard';
+import WeeklyView from '@/components/WeeklyView';
 import { useSearchParams } from 'next/navigation';
 
 interface DashboardClientProps {
@@ -20,6 +22,7 @@ interface DashboardClientProps {
   books?: any[];
   germanyDocs?: any[];
   financeGoals?: any[];
+  weekData?: any;
 }
 
 export default function DashboardClient({
@@ -28,10 +31,11 @@ export default function DashboardClient({
   studyTopics = [],
   books = [],
   germanyDocs = [],
-  financeGoals = []
+  financeGoals = [],
+  weekData = null
 }: DashboardClientProps) {
   const searchParams = useSearchParams();
-  const initialProjectId = searchParams.get('projectId') || (projects.length > 0 ? projects[0].id : undefined);
+  const initialProjectId = searchParams.get('projectId') || 'dashboard';
   
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(initialProjectId);
   const [selectedViewFile, setSelectedViewFile] = useState<any | null>(null);
@@ -62,7 +66,9 @@ export default function DashboardClient({
       <div className="flex-1 overflow-auto">
         <header className="bg-white border-b px-8 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-800">
-            {activeProject ? activeProject.name : 'Dashboard'}
+            {activeProjectId === 'dashboard' ? 'Global Dashboard' : 
+             activeProjectId === 'weekly' ? 'Week View' : 
+             activeProject ? activeProject.name : 'Dashboard'}
           </h1>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-500">Summary for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
@@ -70,7 +76,11 @@ export default function DashboardClient({
         </header>
 
         <main className="p-8">
-          {activeProject ? (
+          {activeProjectId === 'dashboard' ? (
+            <GlobalDashboard metrics={metrics} />
+          ) : activeProjectId === 'weekly' ? (
+            <WeeklyView weekData={weekData} />
+          ) : activeProject ? (
             <div className="space-y-6">
               
               {/* Top KPIs */}

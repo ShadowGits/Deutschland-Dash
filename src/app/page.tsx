@@ -1,16 +1,17 @@
-import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetchFinanceGoals } from '@/lib/api';
+import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetchFinanceGoals, fetchWeekView } from '@/lib/api';
 import DashboardClient from '@/components/DashboardClient';
 import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [metrics, studyTopics, books, germanyDocs, financeGoals] = await Promise.all([
+  const [metrics, studyTopics, books, germanyDocs, financeGoals, weekData] = await Promise.all([
     fetchMetrics(),
     fetchStudyTopics(),
     fetchBooks(),
     fetchGermanyDocuments(),
-    fetchFinanceGoals()
+    fetchFinanceGoals(),
+    fetchWeekView()
   ]);
   
   if (!metrics) {
@@ -32,6 +33,7 @@ export default async function DashboardPage() {
         books={books}
         germanyDocs={germanyDocs}
         financeGoals={financeGoals}
+        weekData={weekData}
       />
     </Suspense>
   );

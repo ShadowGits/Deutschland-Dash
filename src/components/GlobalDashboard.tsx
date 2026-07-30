@@ -1,0 +1,165 @@
+'use client';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame } from 'lucide-react';
+
+interface GlobalDashboardProps {
+  metrics: any;
+}
+
+export default function GlobalDashboard({ metrics }: GlobalDashboardProps) {
+  const totals = metrics?.totals || {};
+  const streaks = metrics?.streaks || {};
+  const upcomingDeadlines = metrics?.upcoming_deadlines || [];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="shadow-sm border-0 rounded-xl">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">Open Tasks</p>
+                <h3 className="text-2xl font-bold text-gray-800">{totals.open_tasks || 0}</h3>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                <Target size={24} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-sm border-0 rounded-xl">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">Completed Today</p>
+                <h3 className="text-2xl font-bold text-gray-800">{totals.completed_today || 0}</h3>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                <CheckCircle2 size={24} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-0 rounded-xl">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">Past 7 Days</p>
+                <h3 className="text-2xl font-bold text-gray-800">{totals.completions_last_7_days || 0}</h3>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-500">
+                <TrendingUp size={24} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-0 rounded-xl">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">Overdue</p>
+                <h3 className="text-2xl font-bold text-red-600">{totals.overdue_tasks || 0}</h3>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                <AlertCircle size={24} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="shadow-sm border-0 rounded-xl">
+            <CardHeader className="border-b bg-white rounded-t-xl px-6 py-5">
+              <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                <Calendar className="mr-2 text-indigo-500" size={20} />
+                Upcoming Deadlines
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {upcomingDeadlines.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-gray-500 uppercase bg-gray-50/50">
+                      <tr>
+                        <th className="px-6 py-4 font-medium">Item</th>
+                        <th className="px-6 py-4 font-medium">Date</th>
+                        <th className="px-6 py-4 font-medium text-right">Days Left</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {upcomingDeadlines.map((item: any, i: number) => (
+                        <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4 font-medium text-gray-900">
+                            <div className="flex items-center">
+                              <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full mr-2 font-bold ${
+                                item.kind === 'milestone' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {item.kind}
+                              </span>
+                              {item.name}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                            {item.date}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                              item.overdue 
+                                ? 'bg-red-100 text-red-700' 
+                                : item.days_left === 0 
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {item.overdue ? 'Overdue' : item.days_left === 0 ? 'Today' : `${item.days_left} days`}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-8 text-center text-gray-500">
+                  No upcoming deadlines found.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="shadow-sm border-0 rounded-xl">
+            <CardHeader className="border-b bg-white rounded-t-xl px-6 py-5">
+              <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                <Flame className="mr-2 text-orange-500" size={20} />
+                Active Streaks
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              {Object.entries(streaks).map(([key, value]) => (
+                <div key={key} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <span className="capitalize font-medium text-gray-700">{key}</span>
+                  <div className="flex items-center font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                    <Flame size={16} className="mr-1" />
+                    {Number(value)} Days
+                  </div>
+                </div>
+              ))}
+              {Object.keys(streaks).length === 0 && (
+                <div className="text-center text-gray-500 text-sm">
+                  No streaks tracked yet.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}

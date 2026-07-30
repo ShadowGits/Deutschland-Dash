@@ -76,16 +76,38 @@ export default function Sidebar({ projects, activeProjectId, onProjectSelect }: 
             Deutschland-Dash
           </p>
           <nav className="space-y-1">
-            {/* We will add real Dashboard and Week View routing later. For now, they are static UI elements */}
-            <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white">
-              <LayoutDashboard className="mr-3 flex-shrink-0 h-5 w-5 text-[#64748b] group-hover:text-emerald-400" />
+            {/* Static UI elements now correctly routed */}
+            <button 
+              onClick={() => onProjectSelect('dashboard')}
+              className={cn(
+                "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left",
+                activeProjectId === 'dashboard' 
+                  ? "bg-[#1e2646] text-white" 
+                  : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
+              )}
+            >
+              <LayoutDashboard className={cn(
+                "mr-3 flex-shrink-0 h-5 w-5",
+                activeProjectId === 'dashboard' ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
+              )} />
               Dashboard
             </button>
             
             {deutschlandDashNames.map(name => renderProjectLink(name, iconMap[name] || LayoutDashboard))}
 
-            <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white mt-4">
-              <Calendar className="mr-3 flex-shrink-0 h-5 w-5 text-[#64748b] group-hover:text-emerald-400" />
+            <button 
+              onClick={() => onProjectSelect('weekly')}
+              className={cn(
+                "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left mt-4",
+                activeProjectId === 'weekly' 
+                  ? "bg-[#1e2646] text-white" 
+                  : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
+              )}
+            >
+              <Calendar className={cn(
+                "mr-3 flex-shrink-0 h-5 w-5",
+                activeProjectId === 'weekly' ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
+              )} />
               Week View
             </button>
             <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white">
