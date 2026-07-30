@@ -5,9 +5,11 @@ import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame } from '
 
 interface GlobalDashboardProps {
   metrics: any;
+  projects?: any[];
+  monthlyGoals?: any[];
 }
 
-export default function GlobalDashboard({ metrics }: GlobalDashboardProps) {
+export default function GlobalDashboard({ metrics, projects = [], monthlyGoals = [] }: GlobalDashboardProps) {
   const totals = metrics?.totals || {};
   const streaks = metrics?.streaks || {};
   const upcomingDeadlines = metrics?.upcoming_deadlines || [];
@@ -71,6 +73,33 @@ export default function GlobalDashboard({ metrics }: GlobalDashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {monthlyGoals.length > 0 && (
+        <Card className="shadow-sm border-0 rounded-xl bg-gradient-to-br from-emerald-50 to-white mb-6">
+          <CardHeader className="border-b border-emerald-100/50 px-6 py-5">
+            <CardTitle className="text-lg font-semibold text-emerald-900 flex items-center">
+              <Target className="mr-2 text-emerald-500" size={20} />
+              Current Month's Goals
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {monthlyGoals.map((g: any) => {
+                const proj = projects.find(p => p.id === g.project_id);
+                const projName = proj ? proj.name : g.project_id?.substring(0, 8);
+                return (
+                  <div key={g.id} className="p-4 rounded-lg bg-white border border-emerald-100/50 shadow-sm flex flex-col">
+                    <span className="inline-flex items-center self-start px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 mb-2">
+                      {projName}
+                    </span>
+                    <span className="text-gray-700 text-sm font-medium">{g.description}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

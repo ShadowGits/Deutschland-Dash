@@ -77,9 +77,9 @@ export default function DashboardClient({
 
         <main className="p-8">
           {activeProjectId === 'dashboard' ? (
-            <GlobalDashboard metrics={metrics} />
+            <GlobalDashboard metrics={metrics} projects={projects} monthlyGoals={weekData?.monthly_goals || []} />
           ) : activeProjectId === 'weekly' ? (
-            <WeeklyView weekData={weekData} />
+            <WeeklyView weekData={weekData} projects={projects} />
           ) : activeProject ? (
             <div className="space-y-6">
               

@@ -8,11 +8,11 @@ import { updateTaskStatus } from '@/lib/api';
 
 interface WeeklyViewProps {
   weekData: any;
+  projects?: any[];
 }
 
-export default function WeeklyView({ weekData }: WeeklyViewProps) {
+export default function WeeklyView({ weekData, projects = [] }: WeeklyViewProps) {
   const [tasks, setTasks] = useState<any[]>(weekData?.items || []);
-  const monthlyGoals = weekData?.monthly_goals || [];
   const weeklyGoals = weekData?.weekly_goals || [];
   
   // Use week_start if provided, otherwise today
@@ -64,7 +64,7 @@ export default function WeeklyView({ weekData }: WeeklyViewProps) {
       </div>
 
       {/* Goals Banners */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card className="shadow-sm border-0 rounded-xl bg-gradient-to-br from-indigo-50 to-white">
           <CardHeader className="pb-3 border-b border-indigo-100/50">
             <CardTitle className="text-base font-semibold text-indigo-900 flex items-center">
@@ -75,38 +75,21 @@ export default function WeeklyView({ weekData }: WeeklyViewProps) {
           <CardContent className="pt-4">
             {weeklyGoals.length > 0 ? (
               <ul className="space-y-3">
-                {weeklyGoals.map((g: any) => (
-                  <li key={g.id} className="text-sm">
-                    <span className="font-bold text-indigo-900 mr-2">{g.project_id?.substring(0, 8)}</span>
-                    <span className="text-gray-700">{g.description}</span>
-                  </li>
-                ))}
+                {weeklyGoals.map((g: any) => {
+                  const proj = projects.find(p => p.id === g.project_id);
+                  const projName = proj ? proj.name : g.project_id?.substring(0, 8);
+                  return (
+                    <li key={g.id} className="text-sm">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 mr-2">
+                        {projName}
+                      </span>
+                      <span className="text-gray-700">{g.description}</span>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <p className="text-sm text-indigo-400/80 italic">No weekly goals mapped by AI for this week.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-0 rounded-xl bg-gradient-to-br from-emerald-50 to-white">
-          <CardHeader className="pb-3 border-b border-emerald-100/50">
-            <CardTitle className="text-base font-semibold text-emerald-900 flex items-center">
-              <Target className="mr-2 text-emerald-500" size={18} />
-              Current Month's Goals
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {monthlyGoals.length > 0 ? (
-              <ul className="space-y-3">
-                {monthlyGoals.map((g: any) => (
-                  <li key={g.id} className="text-sm">
-                    <span className="font-bold text-emerald-900 mr-2">{g.project_id?.substring(0, 8)}</span>
-                    <span className="text-gray-700">{g.description}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-emerald-400/80 italic">No monthly goals set for this month.</p>
             )}
           </CardContent>
         </Card>
