@@ -1,4 +1,4 @@
-import { revalidatePath } from 'next/cache';
+
 
 const BASE_URL = process.env.NEXT_PUBLIC_PLANNER_API_URL || "https://planner-os-api-645411441153.us-central1.run.app";
 const APP_KEY = process.env.PLANNER_APP_KEY;
@@ -55,6 +55,14 @@ export async function fetchMetrics() {
 export async function fetchWeekView(dateStr?: string) {
   const path = dateStr ? `/v2/week?date=${dateStr}` : '/v2/week';
   return await makeRequest<any>(path);
+}
+
+export async function updateTaskStatus(taskId: string, done: boolean) {
+  return await makeRequest<any>(`/v2/day/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ done })
+  });
 }
 
 export async function fetchStudyTopics() {
