@@ -66,7 +66,7 @@ export default function Sidebar({ projects, activeProjectId, onProjectSelect }: 
       <div className="h-16 flex items-center px-6 border-b border-[#1e2646]">
         <div className="font-bold text-white text-xl tracking-wide flex items-center">
           <span className="text-emerald-400 mr-2">◓</span>
-          Planner OS
+          Cabinet of Tasks
         </div>
       </div>
       
@@ -130,7 +130,7 @@ export default function Sidebar({ projects, activeProjectId, onProjectSelect }: 
       <div className="p-4 border-t border-[#1e2646]">
         <div className="flex items-center px-4">
           <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold">
-            P
+            S
           </div>
           <div className="ml-3">
             <p className="text-sm font-medium text-white">Admin</p>
