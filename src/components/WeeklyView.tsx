@@ -11,7 +11,7 @@ interface WeeklyViewProps {
 }
 
 export default function WeeklyView({ weekData }: WeeklyViewProps) {
-  const [tasks, setTasks] = useState<any[]>(weekData?.tasks || []);
+  const [tasks, setTasks] = useState<any[]>(weekData?.items || []);
   const monthlyGoals = weekData?.monthly_goals || [];
   const weeklyGoals = weekData?.weekly_goals || [];
   
@@ -116,7 +116,7 @@ export default function WeeklyView({ weekData }: WeeklyViewProps) {
           });
 
           return (
-            <Card key={dateStr} className={`shadow-sm border-0 rounded-xl overflow-hidden min-h-[300px] flex flex-col ${isToday ? 'ring-2 ring-indigo-500/30 shadow-indigo-100/50' : ''}`}>
+            <Card key={dateStr} className={`shadow-sm border-0 rounded-xl overflow-hidden h-[calc(100vh-320px)] min-h-[500px] flex flex-col ${isToday ? 'ring-2 ring-indigo-500/30 shadow-indigo-100/50' : ''}`}>
               <CardHeader className={`px-4 py-3 border-b ${isToday ? 'bg-indigo-50/80' : 'bg-gray-50/50'}`}>
                 <div className="flex flex-col items-center">
                   <span className={`text-xs font-bold uppercase tracking-wider mb-1 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>
@@ -131,7 +131,7 @@ export default function WeeklyView({ weekData }: WeeklyViewProps) {
                 </div>
               </CardHeader>
               
-              <CardContent className="p-3 flex-1 bg-white/50 space-y-3 overflow-y-auto max-h-[600px] scrollbar-thin">
+              <CardContent className="p-3 flex-1 bg-white/50 space-y-3 overflow-y-auto scrollbar-thin">
                 {dayTasks.map(task => (
                   <div 
                     key={task.id} 
