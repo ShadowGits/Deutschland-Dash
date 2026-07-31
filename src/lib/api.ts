@@ -89,3 +89,7 @@ export async function fetchProjectFiles(projectId: string) {
   const res = await makeRequest<{ files: any[] }>(`/v2/projects/${projectId}/files`);
   return res?.files || [];
 }
+
+export async function deleteTask(taskId: string) {
+  return makeRequest(`/v2/day/tasks/${taskId}`, { method: 'DELETE' });
+}

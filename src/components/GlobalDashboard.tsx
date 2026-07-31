@@ -1,7 +1,9 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame } from 'lucide-react';
+import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { updateTaskStatus, deleteTask } from '@/lib/api';
 
 interface GlobalDashboardProps {
   metrics: any;
@@ -10,6 +12,26 @@ interface GlobalDashboardProps {
 }
 
 export default function GlobalDashboard({ metrics, projects = [], monthlyGoals = [] }: GlobalDashboardProps) {
+  const [isOverdueExpanded, setIsOverdueExpanded] = useState(false);
+  const [overdueTasks, setOverdueTasks] = useState(metrics?.totals?.overdue_list || []);
+  
+  const handleToggleComplete = async (taskId: string, currentDone: boolean) => {
+    try {
+      await updateTaskStatus(taskId, !currentDone);
+      setOverdueTasks(overdueTasks.map((t: any) => t.id === taskId ? { ...t, done: !currentDone } : t));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDelete = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      setOverdueTasks(overdueTasks.filter((t: any) => t.id !== taskId));
+    } catch (e) {
+      console.error(e);
+    }
+  };
   const totals = metrics?.totals || {};
   const streaks = metrics?.streaks || {};
   const upcomingDeadlines = metrics?.upcoming_deadlines || [];
@@ -59,17 +81,53 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-0 rounded-xl">
+        <Card 
+          className={`shadow-sm border-0 rounded-xl cursor-pointer transition-colors hover:bg-red-50/50 ${isOverdueExpanded ? 'md:col-span-4 ring-2 ring-red-200' : ''}`}
+          onClick={() => setIsOverdueExpanded(!isOverdueExpanded)}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-500 mb-1">Overdue</p>
-                <h3 className="text-2xl font-bold text-red-600">{totals.overdue_tasks || 0}</h3>
+                <h3 className="text-2xl font-bold text-red-600">{overdueTasks.length || 0}</h3>
               </div>
               <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center text-red-500">
                 <AlertCircle size={24} />
               </div>
             </div>
+            
+            {isOverdueExpanded && overdueTasks.length > 0 && (
+              <div className="mt-6 border-t border-red-100 pt-4 cursor-default" onClick={(e) => e.stopPropagation()}>
+                <ul className="space-y-3">
+                  {overdueTasks.map((task: any) => (
+                    <li key={task.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-red-100 shadow-sm">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <input 
+                          type="checkbox"
+                          checked={!!task.done}
+                          onChange={() => handleToggleComplete(task.id, !!task.done)}
+                          className="h-5 w-5 rounded border-red-300 text-red-600 focus:ring-red-500 cursor-pointer flex-shrink-0"
+                        />
+                        <span className={`text-sm font-medium ${task.done ? 'line-through text-gray-400' : 'text-gray-800'} truncate`}>
+                          {task.title}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => handleDelete(task.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors ml-2 flex-shrink-0"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {isOverdueExpanded && overdueTasks.length === 0 && (
+              <div className="mt-6 border-t border-red-100 pt-4 text-center text-sm text-gray-500">
+                No overdue tasks! You're all caught up.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
