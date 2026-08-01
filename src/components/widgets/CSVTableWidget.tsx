@@ -19,6 +19,7 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
   const [uploading, setUploading] = useState(false);
   const [tasksMap, setTasksMap] = useState<Record<string, boolean>>({});
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const firstUncheckedRef = React.useRef<HTMLTableRowElement>(null);
 
   const csvFiles = projectFiles.filter(f => f.name && f.name.toLowerCase().endsWith('.csv'));
 
@@ -73,6 +74,16 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
     }
     loadData();
   }, [projectId, selectedFileId]);
+
+  useEffect(() => {
+    // Scroll to the first unchecked task after data loads
+    if (data.length > 0 && firstUncheckedRef.current) {
+      // Small timeout to ensure rendering is fully complete
+      setTimeout(() => {
+        firstUncheckedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [data, tasksMap]);
 
   const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
     // Optimistic UI update
@@ -159,7 +170,7 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
             <p className="text-sm font-medium text-gray-500">Loading live data from Drive...</p>
           </div>
         ) : data.length > 0 ? (
-          <div className="overflow-x-auto min-h-[300px]">
+          <div className="overflow-auto max-h-[450px]">
             <table className="w-full text-sm text-left whitespace-nowrap">
               <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0 z-10">
                 <tr>
@@ -174,14 +185,24 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.map((row, i) => {
-                  const taskId = row['task_id'];
-                  const isLinkedTask = taskId && tasksMap[taskId] !== undefined;
-                  const isDone = isLinkedTask ? tasksMap[taskId] : false;
-                  
-                  return (
-                    <tr key={i} className={`transition-colors ${isDone ? 'bg-emerald-50/30 text-gray-400' : 'hover:bg-white text-gray-700'}`}>
-                      <td className="px-6 py-3 border-r border-gray-100 bg-white sticky left-0 text-center">
+                {(() => {
+                  let foundFirstUnchecked = false;
+                  return data.map((row, i) => {
+                    const taskId = row['task_id'];
+                    const isLinkedTask = taskId && tasksMap[taskId] !== undefined;
+                    const isDone = isLinkedTask ? tasksMap[taskId] : false;
+                    
+                    const isUnchecked = taskId && !isDone;
+                    const shouldAssignRef = isUnchecked && !foundFirstUnchecked;
+                    if (shouldAssignRef) foundFirstUnchecked = true;
+                    
+                    return (
+                      <tr 
+                        key={i} 
+                        ref={shouldAssignRef ? firstUncheckedRef : null}
+                        className={`transition-colors ${isDone ? 'bg-emerald-50/30 text-gray-400' : 'hover:bg-white text-gray-700'}`}
+                      >
+                        <td className="px-6 py-3 border-r border-gray-100 bg-white sticky left-0 text-center">
                         {taskId ? (
                           <input 
                             type="checkbox"
@@ -202,7 +223,8 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
                       ))}
                     </tr>
                   );
-                })}
+                });
+              })()}
               </tbody>
             </table>
           </div>
