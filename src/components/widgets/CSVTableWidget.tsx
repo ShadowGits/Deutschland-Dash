@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, FileSpreadsheet, Loader2, CheckSquare } from 'lucide-react';
-import { downloadProjectFile, getProjectTasks, updateTaskStatus } from '@/app/actions';
+import { Table, FileSpreadsheet, Loader2, CheckSquare, Upload } from 'lucide-react';
+import { downloadProjectFile, getProjectTasks, updateTaskStatus, uploadProjectFile } from '@/app/actions';
 
 interface CSVTableWidgetProps {
   projectId?: string;
@@ -16,7 +16,9 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [tasksMap, setTasksMap] = useState<Record<string, boolean>>({});
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const csvFiles = projectFiles.filter(f => f.name && f.name.toLowerCase().endsWith('.csv'));
 
@@ -84,6 +86,28 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !projectId) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const result = await uploadProjectFile(projectId, formData);
+      if (result.file) {
+        // Automatically select it once uploaded (relying on props update)
+        setSelectedFileId(result.file.id);
+      }
+    } catch (err) {
+      console.error('Upload failed', err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   if (!projectId) return null;
 
   return (
@@ -99,7 +123,7 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
               className="text-sm border-gray-300 rounded-md bg-gray-50 text-gray-700 px-3 py-1.5 focus:ring-indigo-500 focus:border-indigo-500"
               value={selectedFileId}
               onChange={(e) => setSelectedFileId(e.target.value)}
-              disabled={loading}
+              disabled={loading || uploading}
             >
               <option value="" disabled>Select a CSV...</option>
               {csvFiles.map(f => (
@@ -107,8 +131,24 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
               ))}
             </select>
           ) : (
-            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">No CSVs found in project</span>
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded hidden sm:inline-block">No CSVs found</span>
           )}
+          
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            accept=".csv" 
+            className="hidden" 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center space-x-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          >
+            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            <span>Upload</span>
+          </button>
         </div>
       </CardHeader>
       
@@ -170,7 +210,15 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
           <div className="flex flex-col items-center justify-center min-h-[300px] text-gray-400 p-8">
             <FileSpreadsheet size={48} className="mb-4 text-gray-300 opacity-50" />
             <p className="text-base font-medium text-gray-500">No milestone data</p>
-            <p className="text-sm mt-1">Upload a CSV file to this project's Drive folder.</p>
+            <p className="text-sm mt-1 mb-4">Upload a CSV file to begin tracking tasks.</p>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+            >
+              {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+              <span>Upload CSV Data</span>
+            </button>
           </div>
         )}
       </CardContent>
