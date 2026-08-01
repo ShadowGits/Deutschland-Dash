@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, FileSpreadsheet, Loader2, CheckSquare, Upload } from 'lucide-react';
-import { downloadProjectFile, getProjectTasks, updateTaskStatus, uploadProjectFile } from '@/app/actions';
+import { downloadProjectFile, getProjectTasks, updateTaskStatus, uploadProjectFile, getProjectFiles } from '@/app/actions';
 
 interface CSVTableWidgetProps {
   projectId?: string;
@@ -18,10 +18,23 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [tasksMap, setTasksMap] = useState<Record<string, boolean>>({});
+  const [liveFiles, setLiveFiles] = useState<any[]>(projectFiles || []);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const firstUncheckedRef = React.useRef<HTMLTableRowElement>(null);
 
-  const csvFiles = projectFiles.filter(f => f.name && f.name.toLowerCase().endsWith('.csv'));
+  const csvFiles = liveFiles.filter(f => f.name && f.name.toLowerCase().endsWith('.csv'));
+
+  useEffect(() => {
+    let cancelled = false;
+    if (projectId) {
+      getProjectFiles(projectId).then(fetched => {
+        if (!cancelled && fetched && fetched.length > 0) {
+          setLiveFiles(fetched);
+        }
+      });
+    }
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   useEffect(() => {
     if (csvFiles.length > 0 && !selectedFileId) {
@@ -108,7 +121,8 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
     try {
       const result = await uploadProjectFile(projectId, formData);
       if (result.file) {
-        // Automatically select it once uploaded (relying on props update)
+        setLiveFiles(prev => [...prev, result.file]);
+        // Automatically select it once uploaded
         setSelectedFileId(result.file.id);
       }
     } catch (err) {
