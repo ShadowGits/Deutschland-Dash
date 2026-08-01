@@ -166,7 +166,7 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
                   <th className="px-6 py-3 font-semibold border-b border-gray-200 w-10 text-center">
                     <CheckSquare size={16} className="text-gray-400 inline" />
                   </th>
-                  {headers.map((h, i) => (
+                  {headers.filter(h => h !== 'task_id').map((h, i) => (
                     <th key={i} className="px-6 py-3 font-semibold border-b border-gray-200">
                       {h}
                     </th>
@@ -195,8 +195,8 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
                           <span className="text-gray-300">-</span>
                         )}
                       </td>
-                      {headers.map((h, j) => (
-                        <td key={j} className={`px-6 py-3 ${isDone && h !== 'task_id' ? 'line-through' : ''}`}>
+                      {headers.filter(h => h !== 'task_id').map((h, j) => (
+                        <td key={j} className={`px-6 py-3 ${isDone ? 'line-through' : ''}`}>
                           {row[h] !== undefined && row[h] !== null ? String(row[h]) : ''}
                         </td>
                       ))}
