@@ -1,79 +1,131 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, FileSpreadsheet, Upload, X } from 'lucide-react';
+import { Table, FileSpreadsheet, Loader2, CheckSquare } from 'lucide-react';
+import { downloadProjectFile, getProjectTasks, updateTaskStatus } from '@/app/actions';
 
-export default function CSVTableWidget() {
+interface CSVTableWidgetProps {
+  projectId?: string;
+  projectFiles?: any[];
+}
+
+export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTableWidgetProps) {
   const [data, setData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [selectedFileId, setSelectedFileId] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [tasksMap, setTasksMap] = useState<Record<string, boolean>>({});
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const csvFiles = projectFiles.filter(f => f.name && f.name.toLowerCase().endsWith('.csv'));
 
-    setFileName(file.name);
+  useEffect(() => {
+    if (csvFiles.length > 0 && !selectedFileId) {
+      setSelectedFileId(csvFiles[0].id);
+    }
+  }, [csvFiles, selectedFileId]);
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (results.data && results.data.length > 0) {
-          setHeaders(Object.keys(results.data[0] as object));
-          setData(results.data as any[]);
+  useEffect(() => {
+    async function loadData() {
+      if (!projectId || !selectedFileId) return;
+      setLoading(true);
+      try {
+        // Fetch raw CSV and Live Tasks in parallel
+        const [csvText, liveTasks] = await Promise.all([
+          downloadProjectFile(projectId, selectedFileId),
+          getProjectTasks(projectId)
+        ]);
+
+        if (liveTasks) {
+          const map: Record<string, boolean> = {};
+          liveTasks.forEach(t => {
+            map[t.id] = !!t.done;
+          });
+          setTasksMap(map);
         }
-      },
-      error: (error) => {
-        console.error("Error parsing CSV:", error);
+
+        if (csvText) {
+          Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+              if (results.data && results.data.length > 0) {
+                setHeaders(Object.keys(results.data[0] as object));
+                setData(results.data as any[]);
+              } else {
+                setHeaders([]);
+                setData([]);
+              }
+            },
+            error: (error: any) => {
+              console.error("Error parsing CSV:", error);
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Failed to load CSV widget data", e);
+      } finally {
+        setLoading(false);
       }
-    });
+    }
+    loadData();
+  }, [projectId, selectedFileId]);
+
+  const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
+    // Optimistic UI update
+    setTasksMap(prev => ({ ...prev, [taskId]: !currentStatus }));
+    try {
+      await updateTaskStatus(taskId, !currentStatus);
+    } catch (e) {
+      console.error(e);
+      // Revert on failure
+      setTasksMap(prev => ({ ...prev, [taskId]: currentStatus }));
+    }
   };
 
-  const clearData = () => {
-    setData([]);
-    setHeaders([]);
-    setFileName(null);
-  };
+  if (!projectId) return null;
 
   return (
-    <Card className="shadow-sm border-0 rounded-xl overflow-hidden h-full flex flex-col">
+    <Card className="shadow-sm border-0 rounded-xl overflow-hidden h-full flex flex-col mt-6">
       <CardHeader className="border-b bg-white px-6 py-5 flex flex-row items-center justify-between sticky top-0 z-10">
         <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
           <Table className="mr-2 text-indigo-500" size={20} />
-          {fileName ? `Data: ${fileName}` : 'CSV Data Viewer'}
+          Live Milestone Tracker
         </CardTitle>
         <div className="flex items-center space-x-2">
-          {data.length > 0 ? (
-            <button 
-              onClick={clearData}
-              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-              title="Clear Data"
+          {csvFiles.length > 0 ? (
+            <select
+              className="text-sm border-gray-300 rounded-md bg-gray-50 text-gray-700 px-3 py-1.5 focus:ring-indigo-500 focus:border-indigo-500"
+              value={selectedFileId}
+              onChange={(e) => setSelectedFileId(e.target.value)}
+              disabled={loading}
             >
-              <X size={18} />
-            </button>
+              <option value="" disabled>Select a CSV...</option>
+              {csvFiles.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
           ) : (
-            <label className="cursor-pointer bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center">
-              <Upload size={16} className="mr-1.5" />
-              Upload CSV
-              <input 
-                type="file" 
-                accept=".csv" 
-                className="hidden" 
-                onChange={handleFileUpload}
-              />
-            </label>
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">No CSVs found in project</span>
           )}
         </div>
       </CardHeader>
       
       <CardContent className="p-0 flex-1 overflow-auto bg-gray-50/30">
-        {data.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center min-h-[300px] text-gray-400 p-8">
+            <Loader2 size={32} className="animate-spin mb-4 text-indigo-500" />
+            <p className="text-sm font-medium text-gray-500">Loading live data from Drive...</p>
+          </div>
+        ) : data.length > 0 ? (
           <div className="overflow-x-auto min-h-[300px]">
             <table className="w-full text-sm text-left whitespace-nowrap">
               <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0 z-10">
                 <tr>
+                  <th className="px-6 py-3 font-semibold border-b border-gray-200 w-10 text-center">
+                    <CheckSquare size={16} className="text-gray-400 inline" />
+                  </th>
                   {headers.map((h, i) => (
                     <th key={i} className="px-6 py-3 font-semibold border-b border-gray-200">
                       {h}
@@ -82,23 +134,43 @@ export default function CSVTableWidget() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.map((row, i) => (
-                  <tr key={i} className="hover:bg-white transition-colors">
-                    {headers.map((h, j) => (
-                      <td key={j} className="px-6 py-3 text-gray-700">
-                        {row[h] !== undefined && row[h] !== null ? String(row[h]) : ''}
+                {data.map((row, i) => {
+                  const taskId = row['task_id'];
+                  const isLinkedTask = taskId && tasksMap[taskId] !== undefined;
+                  const isDone = isLinkedTask ? tasksMap[taskId] : false;
+                  
+                  return (
+                    <tr key={i} className={`transition-colors ${isDone ? 'bg-emerald-50/30 text-gray-400' : 'hover:bg-white text-gray-700'}`}>
+                      <td className="px-6 py-3 border-r border-gray-100 bg-white sticky left-0 text-center">
+                        {taskId ? (
+                          <input 
+                            type="checkbox"
+                            checked={isDone}
+                            onChange={() => handleToggleTask(taskId, isDone)}
+                            className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            disabled={!isLinkedTask}
+                            title={!isLinkedTask ? "Task ID not found in database" : ""}
+                          />
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                      {headers.map((h, j) => (
+                        <td key={j} className={`px-6 py-3 ${isDone && h !== 'task_id' ? 'line-through' : ''}`}>
+                          {row[h] !== undefined && row[h] !== null ? String(row[h]) : ''}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[300px] text-gray-400 p-8">
             <FileSpreadsheet size={48} className="mb-4 text-gray-300 opacity-50" />
-            <p className="text-base font-medium text-gray-500">No data loaded</p>
-            <p className="text-sm mt-1">Upload a CSV file to view it as an interactive table.</p>
+            <p className="text-base font-medium text-gray-500">No milestone data</p>
+            <p className="text-sm mt-1">Upload a CSV file to this project's Drive folder.</p>
           </div>
         )}
       </CardContent>

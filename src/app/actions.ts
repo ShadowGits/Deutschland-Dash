@@ -103,3 +103,25 @@ export async function deleteProjectFile(projectId: string, fileId: string) {
   revalidatePath('/');
   return res !== null;
 }
+
+
+export async function downloadProjectFile(projectId: string, fileId: string) {
+  const baseUrl = process.env.NEXT_PUBLIC_PLANNER_API_URL || 'https://planner-os-api-645411441153.us-central1.run.app';
+  const apiKey = process.env.PLANNER_APP_KEY || '';
+  
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/v2/projects/${projectId}/files/${fileId}/download`, {
+      headers: { 'X-App-Key': apiKey }
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+export async function getProjectTasks(projectId: string) {
+  const res = await makeRequest<{ tasks: any[] }>(`/v2/projects/${projectId}/tasks`);
+  return res?.tasks || [];
+}

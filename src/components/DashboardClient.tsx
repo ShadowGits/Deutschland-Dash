@@ -6,6 +6,7 @@ import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder } from 'lucide-re
 import MonthlyGoalsTable from '@/components/MonthlyGoalsTable';
 import Sidebar from '@/components/Sidebar';
 import ProjectFilesWidget from '@/components/ProjectFilesWidget';
+import CSVTableWidget from '@/components/widgets/CSVTableWidget';
 import DocumentViewerModal from '@/components/DocumentViewerModal';
 import StudyWidget from '@/components/widgets/StudyWidget';
 import BooksWidget from '@/components/widgets/BooksWidget';
@@ -220,6 +221,13 @@ export default function DashboardClient({
                   </CardContent>
                 </Card>
               </div>
+
+              {/* CSV Table Widget */}
+              <CSVTableWidget
+                key={activeProject.id + "_csv"}
+                projectId={activeProject.id}
+                projectFiles={activeProject.files || []}
+              />
 
             </div>
           ) : (

@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2 } from 'lucide-react';
-import CSVTableWidget from '@/components/widgets/CSVTableWidget';
 import { useState } from 'react';
 import { updateTaskStatus, deleteTask } from '@/lib/api';
 
@@ -247,11 +246,6 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
             </CardContent>
           </Card>
         </div>
-
-      {/* CSV Table Widget */}
-      <div className="mt-6">
-        <CSVTableWidget />
-      </div>
       </div>
     </div>
   );
