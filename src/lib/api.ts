@@ -22,10 +22,11 @@ export async function makeRequest<T>(
   }
 
   try {
+    const isMutation = options.method && options.method !== 'GET';
     const res = await fetch(url, {
       ...options,
       headers,
-      cache: 'no-store'
+      ...(isMutation ? { cache: 'no-store' as const } : { next: { revalidate: 30 } }),
     });
 
     if (!res.ok) {
