@@ -8,6 +8,7 @@ import Sidebar from '@/components/Sidebar';
 import ProjectFilesWidget from '@/components/ProjectFilesWidget';
 import CSVTableWidget from '@/components/widgets/CSVTableWidget';
 import ProjectCustomTablesWidget from '@/components/widgets/ProjectCustomTablesWidget';
+import ProjectQnaWidget from '@/components/widgets/ProjectQnaWidget';
 import DocumentViewerModal from '@/components/DocumentViewerModal';
 import StudyWidget from '@/components/widgets/StudyWidget';
 import BooksWidget from '@/components/widgets/BooksWidget';
@@ -233,6 +234,12 @@ export default function DashboardClient({
               {/* Custom Project Tables */}
               <ProjectCustomTablesWidget
                 key={activeProject.id + "_custom"}
+                projectId={activeProject.id}
+              />
+
+              {/* QnA Widget */}
+              <ProjectQnaWidget
+                key={activeProject.id + "_qna"}
                 projectId={activeProject.id}
               />
 

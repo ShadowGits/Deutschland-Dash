@@ -99,3 +99,23 @@ export async function fetchProjectTable(projectId: string, tableName: string) {
   const res = await makeRequest<{ [key: string]: any[] }>(`/v2/projects/${projectId}/${tableName}`);
   return res?.[tableName] || [];
 }
+
+export async function createProjectQna(projectId: string, data: { question: string, answer?: string, status?: string, notes?: string }) {
+  return makeRequest(`/v2/projects/${projectId}/project_qna`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+}
+
+export async function updateProjectQna(qnaId: string, data: { question?: string, answer?: string, status?: string, notes?: string }) {
+  return makeRequest(`/v2/project_qna/${qnaId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+}
+
+export async function deleteProjectQna(qnaId: string) {
+  return makeRequest(`/v2/project_qna/${qnaId}`, { method: 'DELETE' });
+}
