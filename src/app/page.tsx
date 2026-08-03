@@ -1,4 +1,4 @@
-import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetchFinanceGoals, fetchWeekView } from '@/lib/api';
+import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetchFinanceGoals, fetchWeekView, fetchProjectWidgets } from '@/lib/api';
 import DashboardClient from '@/components/DashboardClient';
 import { Suspense } from 'react';
 
@@ -14,6 +14,17 @@ export default async function DashboardPage() {
     fetchWeekView()
   ]);
   
+  const projects = metrics?.projects || [];
+  const projectWidgetsMap: Record<string, any[]> = {};
+  
+  if (projects.length > 0) {
+    const widgetsPromises = projects.map((p: any) => fetchProjectWidgets(p.id));
+    const widgetsResults = await Promise.all(widgetsPromises);
+    projects.forEach((p: any, idx: number) => {
+      projectWidgetsMap[p.id] = widgetsResults[idx]?.widgets || [];
+    });
+  }
+  
   if (!metrics) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 text-red-500">
@@ -22,7 +33,6 @@ export default async function DashboardPage() {
     );
   }
 
-  const projects = metrics.projects || [];
 
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading dashboard...</div>}>
@@ -34,6 +44,7 @@ export default async function DashboardPage() {
         germanyDocs={germanyDocs}
         financeGoals={financeGoals}
         weekData={weekData}
+        projectWidgets={projectWidgetsMap}
       />
     </Suspense>
   );

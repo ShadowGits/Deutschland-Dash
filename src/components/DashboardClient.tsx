@@ -9,6 +9,9 @@ import ProjectFilesWidget from '@/components/ProjectFilesWidget';
 import CSVTableWidget from '@/components/widgets/CSVTableWidget';
 import ProjectCustomTablesWidget from '@/components/widgets/ProjectCustomTablesWidget';
 import ProjectQnaWidget from '@/components/widgets/ProjectQnaWidget';
+import AddWidgetModal from '@/components/widgets/AddWidgetModal';
+import TextWidget from '@/components/widgets/TextWidget';
+import { getProjectFiles } from '@/app/actions';
 import DocumentViewerModal from '@/components/DocumentViewerModal';
 import StudyWidget from '@/components/widgets/StudyWidget';
 import BooksWidget from '@/components/widgets/BooksWidget';
@@ -26,6 +29,7 @@ interface DashboardClientProps {
   germanyDocs?: any[];
   financeGoals?: any[];
   weekData?: any;
+  projectWidgets?: Record<string, any[]>;
 }
 
 export default function DashboardClient({
@@ -35,13 +39,23 @@ export default function DashboardClient({
   books = [],
   germanyDocs = [],
   financeGoals = [],
-  weekData = null
+  weekData = null,
+  projectWidgets = {}
 }: DashboardClientProps) {
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('projectId') || 'dashboard';
   
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(initialProjectId);
   const [selectedViewFile, setSelectedViewFile] = useState<any | null>(null);
+  const [projectFiles, setProjectFiles] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (activeProjectId && activeProjectId !== 'dashboard' && activeProjectId !== 'weekly') {
+      getProjectFiles(activeProjectId).then(files => {
+        setProjectFiles(files || []);
+      });
+    }
+  }, [activeProjectId]);
 
   // Update URL without triggering a Next.js navigation (which would cause a server re-render)
   useEffect(() => {
@@ -224,24 +238,60 @@ export default function DashboardClient({
                 </Card>
               </div>
 
-              {/* CSV Table Widget */}
-              <CSVTableWidget
-                key={activeProject.id + "_csv"}
-                projectId={activeProject.id}
-                projectFiles={activeProject.files || []}
-              />
-
-              {/* Custom Project Tables */}
+                            {/* Custom Project Tables */}
               <ProjectCustomTablesWidget
                 key={activeProject.id + "_custom"}
                 projectId={activeProject.id}
               />
 
-              {/* QnA Widget */}
-              <ProjectQnaWidget
-                key={activeProject.id + "_qna"}
-                projectId={activeProject.id}
-              />
+              {/* Dynamic Widgets Loop */}
+              {(projectWidgets[activeProject.id] || []).map((widget: any) => {
+                if (widget.widget_type === 'qna') {
+                  return (
+                    <ProjectQnaWidget
+                      key={widget.id}
+                      projectId={activeProject.id}
+                    />
+                  );
+                }
+                if (widget.widget_type === 'csv') {
+                  return (
+                    <CSVTableWidget
+                      key={widget.id}
+                      projectId={activeProject.id}
+                      projectFiles={projectFiles}
+                    />
+                  );
+                }
+                if (widget.widget_type === 'text') {
+                  const fileInfo = projectFiles.find(f => f.id === widget.file_id);
+                  return (
+                    <TextWidget
+                      key={widget.id}
+                      projectId={activeProject.id}
+                      widget={widget}
+                      fileInfo={fileInfo}
+                      onDelete={async () => {
+                        const { deleteWidgetAction } = await import('@/app/actions');
+                        await deleteWidgetAction(widget.id);
+                      }}
+                    />
+                  );
+                }
+                return null;
+              })}
+
+              {/* Add Widget Button */}
+              <div className="flex justify-center mt-8 pb-8">
+                <AddWidgetModal 
+                  projectId={activeProject.id}
+                  projectFiles={projectFiles}
+                  onWidgetAdded={() => {
+                    // It relies on server action revalidating path, so we can just let it refresh
+                    window.location.reload();
+                  }}
+                />
+              </div>
 
 
             </div>

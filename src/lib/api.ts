@@ -119,3 +119,7 @@ export async function updateProjectQna(qnaId: string, data: { question?: string,
 export async function deleteProjectQna(qnaId: string) {
   return makeRequest(`/v2/project_qna/${qnaId}`, { method: 'DELETE' });
 }
+
+export async function fetchProjectWidgets(projectId: string) {
+  return makeRequest<{ widgets: any[] }>(`/v2/projects/${projectId}/widgets`);
+}

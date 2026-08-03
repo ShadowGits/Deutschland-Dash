@@ -146,3 +146,25 @@ export async function deleteQnaAction(qnaId: string) {
 export async function fetchTableAction(projectId: string, tableName: string) {
   return fetchProjectTable(projectId, tableName);
 }
+
+export async function fetchWidgetsAction(projectId: string) {
+  const { makeRequest } = await import('@/lib/api');
+  const res = await makeRequest<{ widgets: any[] }>(`/v2/projects/${projectId}/widgets`, { cache: 'no-store' });
+  return res?.widgets || [];
+}
+
+export async function createWidgetAction(projectId: string, data: { widget_type: string, title?: string, file_id?: string, config?: any }) {
+  const { makeRequest } = await import('@/lib/api');
+  await makeRequest(`/v2/projects/${projectId}/widgets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  revalidatePath('/');
+}
+
+export async function deleteWidgetAction(widgetId: string) {
+  const { makeRequest } = await import('@/lib/api');
+  await makeRequest(`/v2/widgets/${widgetId}`, { method: 'DELETE' });
+  revalidatePath('/');
+}
