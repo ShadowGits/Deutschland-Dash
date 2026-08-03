@@ -168,3 +168,13 @@ export async function deleteWidgetAction(widgetId: string) {
   await makeRequest(`/v2/widgets/${widgetId}`, { method: 'DELETE' });
   revalidatePath('/');
 }
+
+export async function updateWidgetAction(widgetId: string, data: { title?: string, file_id?: string, config?: any, order_index?: number }) {
+  const { makeRequest } = await import('@/lib/api');
+  await makeRequest(`/v2/widgets/${widgetId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  revalidatePath('/');
+}
