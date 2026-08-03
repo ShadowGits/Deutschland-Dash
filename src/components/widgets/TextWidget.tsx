@@ -21,7 +21,11 @@ export default function TextWidget({ projectId, widget, fileInfo, onDelete }: Te
     
     async function loadContent() {
       if (!widget.file_id) {
-        setContent("No file selected.");
+        if (widget.config?.content) {
+          setContent(widget.config.content);
+        } else {
+          setContent("No file or text provided.");
+        }
         setLoading(false);
         return;
       }

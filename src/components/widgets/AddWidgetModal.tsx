@@ -15,6 +15,7 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
   const [widgetType, setWidgetType] = useState('qna');
   const [title, setTitle] = useState('');
   const [fileId, setFileId] = useState('');
+  const [textContent, setTextContent] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleAdd = async () => {
@@ -23,13 +24,14 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
       await createWidgetAction(projectId, {
         widget_type: widgetType,
         title: title || undefined,
-        file_id: (widgetType === 'csv' || widgetType === 'text') ? fileId : undefined,
-        config: {}
+        file_id: fileId || undefined,
+        config: { content: textContent }
       });
       setIsOpen(false);
       setWidgetType('qna');
       setTitle('');
       setFileId('');
+      setTextContent('');
       onWidgetAdded();
     } catch (e) {
       console.error(e);
@@ -100,9 +102,9 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
                 />
               </div>
 
-              {(widgetType === 'csv' || widgetType === 'text') && (
+              {widgetType === 'csv' && (
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-gray-700">Select File</label>
+                  <label className="text-sm font-semibold text-gray-700">Select CSV File (Required)</label>
                   {projectFiles.length > 0 ? (
                     <select 
                       value={fileId} 
@@ -110,17 +112,50 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
                       className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50/50"
                     >
                       <option value="" disabled>-- Select a file --</option>
-                      {projectFiles.filter(f => {
-                        if (widgetType === 'csv') return f.name.endsWith('.csv');
-                        if (widgetType === 'text') return f.name.endsWith('.md') || f.name.endsWith('.txt');
-                        return true;
-                      }).map(f => (
+                      {projectFiles.filter(f => f.name.endsWith('.csv')).map(f => (
                         <option key={f.id} value={f.id}>{f.name}</option>
                       ))}
                     </select>
                   ) : (
-                    <p className="text-sm text-red-500 p-3 bg-red-50 rounded-lg">No matching files uploaded to this project yet. Please upload a file first.</p>
+                    <p className="text-sm text-red-500 p-3 bg-red-50 rounded-lg">No CSV files uploaded yet.</p>
                   )}
+                </div>
+              )}
+
+              {widgetType === 'text' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Custom Text Content</label>
+                    <textarea 
+                      value={textContent}
+                      onChange={(e) => setTextContent(e.target.value)}
+                      placeholder="Type your text here..."
+                      rows={4}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50/50 resize-none"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <div className="h-px bg-gray-200 flex-1"></div>
+                    <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">OR</span>
+                    <div className="h-px bg-gray-200 flex-1"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Link to a Drive File</label>
+                    {projectFiles.length > 0 ? (
+                      <select 
+                        value={fileId} 
+                        onChange={(e) => setFileId(e.target.value)}
+                        className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50/50"
+                      >
+                        <option value="">-- No file (use custom text) --</option>
+                        {projectFiles.filter(f => f.name.endsWith('.md') || f.name.endsWith('.txt')).map(f => (
+                          <option key={f.id} value={f.id}>{f.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-xs text-gray-500">Upload .txt or .md files to select them here.</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -134,7 +169,7 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
               </button>
               <button 
                 onClick={handleAdd}
-                disabled={loading || ((widgetType === 'csv' || widgetType === 'text') && !fileId)}
+                disabled={loading || (widgetType === 'csv' && !fileId) || (widgetType === 'text' && !fileId && !textContent.trim())}
                 className="px-5 py-2.5 rounded-xl font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 flex items-center space-x-2"
               >
                 {loading && <Loader2 size={16} className="animate-spin" />}
