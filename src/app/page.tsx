@@ -2,7 +2,7 @@ import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetc
 import DashboardClient from '@/components/DashboardClient';
 import { Suspense } from 'react';
 
-export const revalidate = 30;
+export const revalidate = 300;
 
 export default async function DashboardPage() {
   const [metrics, studyTopics, books, germanyDocs, financeGoals, weekData] = await Promise.all([

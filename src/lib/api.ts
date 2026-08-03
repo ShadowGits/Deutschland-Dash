@@ -26,7 +26,7 @@ export async function makeRequest<T>(
     const res = await fetch(url, {
       ...options,
       headers,
-      ...(isMutation ? { cache: 'no-store' as const } : { next: { revalidate: 30 } }),
+      ...(isMutation ? { cache: 'no-store' as const } : { next: { revalidate: 300 } }),
     });
 
     if (!res.ok) {
