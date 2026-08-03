@@ -30,7 +30,7 @@ export default function ProjectCustomTablesWidget({ projectId }: { projectId: st
         if (!mounted) return;
 
         const newData: { [key: string]: any[] } = {};
-        let firstPopulatedTab = null;
+        let firstPopulatedTab: string | null = null;
 
         results.forEach((rows, i) => {
           if (rows && rows.length > 0) {
