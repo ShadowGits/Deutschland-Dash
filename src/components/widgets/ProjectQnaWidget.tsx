@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Loader2, Plus, Edit2, Trash2, Check, X, MessageSquare, AlertCircle } from 'lucide-react';
-import { fetchProjectTable, createProjectQna, updateProjectQna, deleteProjectQna } from '@/lib/api';
+import { fetchTableAction, createQnaAction, updateQnaAction, deleteQnaAction } from '@/app/actions';
 
 export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
   const [qnas, setQnas] = useState<any[]>([]);
@@ -18,7 +18,7 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
 
   const loadData = async () => {
     try {
-      const data = await fetchProjectTable(projectId, "project_qna");
+      const data = await fetchTableAction(projectId, "project_qna");
       setQnas(data || []);
     } catch (e) {
       console.error("Failed to fetch QnAs", e);
@@ -35,10 +35,10 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
     if (!question.trim()) return;
     try {
       if (id) {
-        await updateProjectQna(id, { question, answer, status });
+        await updateQnaAction(id, { question, answer, status });
         setEditingId(null);
       } else {
-        await createProjectQna(projectId, { question, answer, status });
+        await createQnaAction(projectId, { question, answer, status });
         setIsAdding(false);
       }
       loadData();
@@ -53,7 +53,7 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this QnA?")) return;
     try {
-      await deleteProjectQna(id);
+      await deleteQnaAction(id);
       loadData();
     } catch (e) {
       console.error("Failed to delete QnA", e);

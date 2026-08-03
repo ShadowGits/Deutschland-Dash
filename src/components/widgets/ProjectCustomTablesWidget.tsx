@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Table, Loader2 } from 'lucide-react';
-import { fetchProjectTable } from '@/lib/api';
+import { FileText, Database, Users, GraduationCap, FileSearch, ArrowUpRight, Loader2 } from 'lucide-react';
+import { fetchTableAction } from '@/app/actions';
 
 const CUSTOM_TABLES = [
   { name: 'germany_tests', label: 'Tests' },
@@ -24,7 +24,7 @@ export default function ProjectCustomTablesWidget({ projectId }: { projectId: st
       setLoading(true);
       try {
         const results = await Promise.all(
-          CUSTOM_TABLES.map(t => fetchProjectTable(projectId, t.name))
+          CUSTOM_TABLES.map(t => fetchTableAction(projectId, t.name))
         );
         
         if (!mounted) return;
