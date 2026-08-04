@@ -96,7 +96,7 @@ export async function deleteTask(taskId: string) {
 }
 
 export async function fetchProjectTable(projectId: string, tableName: string) {
-  const res = await makeRequest<{ [key: string]: any[] }>(`/v2/projects/${projectId}/${tableName}`, { cache: 'no-store' });
+  const res = await makeRequest<{ [key: string]: any[] }>(`/v2/projects/${projectId}/${tableName}`);
   return res?.[tableName] || [];
 }
 
