@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { makeRequest, fetchProjectFiles } from '@/lib/api';
+import { createProjectQna as apiCreateQna, updateProjectQna as apiUpdateQna, deleteProjectQna as apiDeleteQna, fetchProjectTable } from '@/lib/api';
 
 export async function addMonthlyGoal(projectId: string, month: string, description: string) {
   const payload = { project_id: projectId, month, description };
@@ -138,8 +139,6 @@ export async function getProjectTasks(projectId: string) {
   const res = await makeRequest<{ tasks: any[] }>(`/v2/projects/${projectId}/tasks`);
   return res?.tasks || [];
 }
-
-import { createProjectQna as apiCreateQna, updateProjectQna as apiUpdateQna, deleteProjectQna as apiDeleteQna, fetchProjectTable } from '@/lib/api';
 
 export async function createQnaAction(projectId: string, data: { question: string, answer?: string, status?: string, notes?: string }) {
   await apiCreateQna(projectId, data);

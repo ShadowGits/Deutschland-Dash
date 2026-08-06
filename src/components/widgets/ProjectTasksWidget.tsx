@@ -36,12 +36,12 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
 
   const handleToggle = async (taskId: string, currentDone: boolean) => {
     // Optimistic update
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: !currentDone } : t));
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: currentDone ? 'todo' : 'done' } : t));
     try {
       await updateTaskStatus(taskId, !currentDone);
     } catch (e) {
       // Revert on failure
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: currentDone } : t));
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: currentDone ? 'done' : 'todo' } : t));
     }
   };
 
@@ -62,8 +62,8 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     }
   };
 
-  const openTasks = tasks.filter(t => !t.done);
-  const doneTasks = tasks.filter(t => t.done);
+  const openTasks = tasks.filter(t => t.status !== 'done');
+  const doneTasks = tasks.filter(t => t.status === 'done');
   const sortedTasks = [...openTasks, ...doneTasks];
 
   return (
@@ -119,15 +119,15 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
           ) : (
             <ul className="space-y-1">
               {sortedTasks.map(task => (
-                <li key={task.id} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${task.done ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
+                <li key={task.id} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${task.status === 'done' ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
                   <input 
                     type="checkbox" 
-                    checked={!!task.done}
-                    onChange={() => handleToggle(task.id, !!task.done)}
+                    checked={task.status === 'done'}
+                    onChange={() => handleToggle(task.id, task.status === 'done')}
                     className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${task.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                    <p className={`text-sm font-medium truncate ${task.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                       {task.title}
                     </p>
                     {task.scheduled_date && (
