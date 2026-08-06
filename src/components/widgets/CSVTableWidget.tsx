@@ -22,7 +22,7 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const firstUncheckedRef = React.useRef<HTMLTableRowElement>(null);
 
-  const csvFiles = liveFiles.filter(f => f.name && f.name.toLowerCase().endsWith('.csv'));
+  const csvFiles = liveFiles.filter(f => (f.name && f.name.toLowerCase().endsWith('.csv')) || f.file_type === 'csv' || f.file_type === 'excel');
 
   useEffect(() => {
     let cancelled = false;

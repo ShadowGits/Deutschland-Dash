@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Plus, X, LayoutDashboard, FileText, Table, MessageSquare, Loader2 } from 'lucide-react';
+import { Plus, X, LayoutDashboard, FileText, Table, MessageSquare, Loader2, CheckSquare } from 'lucide-react';
 import { createWidgetAction } from '@/app/actions';
 
 interface AddWidgetModalProps {
@@ -44,7 +44,8 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
   const WIDGET_OPTIONS = [
     { id: 'qna', label: 'Q&A Widget', icon: <MessageSquare size={16} /> },
     { id: 'csv', label: 'CSV Display', icon: <Table size={16} /> },
-    { id: 'text', label: 'Text Display', icon: <FileText size={16} /> }
+    { id: 'text', label: 'Text Display', icon: <FileText size={16} /> },
+    { id: 'tasks', label: 'Project Tasks', icon: <CheckSquare size={16} /> }
   ];
 
   return (
@@ -112,7 +113,7 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
                       className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50/50"
                     >
                       <option value="" disabled>-- Select a file --</option>
-                      {projectFiles.filter(f => f.name.endsWith('.csv')).map(f => (
+                      {projectFiles.filter(f => (f.name && f.name.toLowerCase().endsWith('.csv')) || f.file_type === 'csv' || f.file_type === 'excel').map(f => (
                         <option key={f.id} value={f.id}>{f.name}</option>
                       ))}
                     </select>

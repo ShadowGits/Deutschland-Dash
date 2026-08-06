@@ -121,6 +121,19 @@ export async function downloadProjectFile(projectId: string, fileId: string) {
   }
 }
 
+
+export async function addTaskToProject(projectId: string, title: string, scheduledDate?: string) {
+  const payload = { title, scheduled_date: scheduledDate };
+  const res = await makeRequest(`/v2/projects/${projectId}/tasks`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  revalidatePath('/');
+  return res !== null;
+}
+
 export async function getProjectTasks(projectId: string) {
   const res = await makeRequest<{ tasks: any[] }>(`/v2/projects/${projectId}/tasks`);
   return res?.tasks || [];

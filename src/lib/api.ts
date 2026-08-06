@@ -121,5 +121,5 @@ export async function deleteProjectQna(qnaId: string) {
 }
 
 export async function fetchProjectWidgets(projectId: string) {
-  return makeRequest<{ widgets: any[] }>(`/v2/projects/${projectId}/widgets`);
+  return makeRequest<{ widgets: any[] }>(`/v2/projects/${projectId}/widgets`, { cache: 'no-store' });
 }

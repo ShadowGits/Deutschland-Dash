@@ -9,6 +9,7 @@ import ProjectFilesWidget from '@/components/ProjectFilesWidget';
 import CSVTableWidget from '@/components/widgets/CSVTableWidget';
 import ProjectCustomTablesWidget from '@/components/widgets/ProjectCustomTablesWidget';
 import ProjectQnaWidget from '@/components/widgets/ProjectQnaWidget';
+import ProjectTasksWidget from '@/components/widgets/ProjectTasksWidget';
 import AddWidgetModal from '@/components/widgets/AddWidgetModal';
 import TextWidget from '@/components/widgets/TextWidget';
 import { getProjectFiles } from '@/app/actions';
@@ -260,6 +261,20 @@ export default function DashboardClient({
                       key={widget.id}
                       projectId={activeProject.id}
                       projectFiles={projectFiles}
+                    />
+                  );
+                }
+                
+                if (widget.widget_type === 'tasks') {
+                  return (
+                    <ProjectTasksWidget
+                      key={widget.id}
+                      projectId={activeProject.id}
+                      widget={widget}
+                      onDelete={async () => {
+                        const { deleteWidgetAction } = await import('@/app/actions');
+                        await deleteWidgetAction(widget.id);
+                      }}
                     />
                   );
                 }
