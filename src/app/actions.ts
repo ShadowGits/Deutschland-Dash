@@ -140,6 +140,16 @@ export async function getProjectTasks(projectId: string) {
   return res?.tasks || [];
 }
 
+export async function updateTask(taskId: string, updates: { title?: string; scheduled_date?: string; start_time?: string; estimated_minutes?: number }) {
+  const res = await makeRequest(`/v2/day/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+    headers: { 'Content-Type': 'application/json' }
+  });
+  revalidatePath('/');
+  return res !== null;
+}
+
 export async function createQnaAction(projectId: string, data: { question: string, answer?: string, status?: string, notes?: string }) {
   await apiCreateQna(projectId, data);
   revalidatePath('/');
