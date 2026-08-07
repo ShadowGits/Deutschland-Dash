@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check } from 'lucide-react';
-import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask } from '@/app/actions';
+import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check, Milestone, ChevronDown, ChevronRight, Link, PlusCircle } from 'lucide-react';
+import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getProjectMilestones, createProjectMilestone, linkTaskToMilestone } from '@/app/actions';
 
 interface ProjectTasksWidgetProps {
   projectId: string;
@@ -13,21 +13,34 @@ interface ProjectTasksWidgetProps {
 
 export default function ProjectTasksWidget({ projectId, widget, onDelete }: ProjectTasksWidgetProps) {
   const [tasks, setTasks] = useState<any[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDate, setNewTaskDate] = useState('');
+  const [newTaskMilestone, setNewTaskMilestone] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDate, setEditDate] = useState('');
   const [saving, setSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  const loadTasks = async () => {
+  // Milestone linking state
+  const [linkingTaskId, setLinkingTaskId] = useState<string | null>(null);
+  const [showNewMilestone, setShowNewMilestone] = useState(false);
+  const [newMilestoneName, setNewMilestoneName] = useState('');
+  const [creatingMilestone, setCreatingMilestone] = useState(false);
+
+  const loadData = async () => {
     setLoading(true);
     try {
-      const data = await getProjectTasks(projectId);
-      setTasks(data || []);
+      const [taskData, milestoneData] = await Promise.all([
+        getProjectTasks(projectId),
+        getProjectMilestones(projectId),
+      ]);
+      setTasks(taskData || []);
+      setMilestones(milestoneData || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -36,7 +49,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   };
 
   useEffect(() => {
-    loadTasks();
+    loadData();
   }, [projectId]);
 
   useEffect(() => {
@@ -60,10 +73,11 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
 
     setAdding(true);
     try {
-      await addTaskToProject(projectId, newTaskTitle, newTaskDate || undefined);
+      await addTaskToProject(projectId, newTaskTitle, newTaskDate || undefined, newTaskMilestone || undefined);
       setNewTaskTitle('');
       setNewTaskDate('');
-      await loadTasks();
+      setNewTaskMilestone('');
+      await loadData();
     } catch (err) {
       console.error(err);
     } finally {
@@ -97,13 +111,11 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
       return;
     }
 
-    // Optimistic update
     setTasks(prev => prev.map(t => t.id === editingId ? { ...t, ...updates } : t));
     try {
       await updateTask(editingId, updates);
       cancelEdit();
     } catch (e) {
-      // Revert
       setTasks(prev => prev.map(t => t.id === editingId ? original : t));
       console.error(e);
     } finally {
@@ -116,9 +128,206 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     if (e.key === 'Escape') cancelEdit();
   };
 
-  const openTasks = tasks.filter(t => t.status !== 'done');
-  const doneTasks = tasks.filter(t => t.status === 'done');
-  const sortedTasks = [...openTasks, ...doneTasks];
+  const handleLinkMilestone = async (taskId: string, milestoneId: string) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, milestone_id: milestoneId } : t));
+    setLinkingTaskId(null);
+    try {
+      await linkTaskToMilestone(taskId, milestoneId);
+    } catch (e) {
+      console.error(e);
+      await loadData();
+    }
+  };
+
+  const handleCreateAndLink = async (taskId: string) => {
+    if (!newMilestoneName.trim()) return;
+    setCreatingMilestone(true);
+    try {
+      const result = await createProjectMilestone(projectId, newMilestoneName.trim());
+      if (result?.milestone) {
+        setMilestones(prev => [...prev, result.milestone]);
+        await handleLinkMilestone(taskId, result.milestone.id);
+      }
+      setNewMilestoneName('');
+      setShowNewMilestone(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCreatingMilestone(false);
+    }
+  };
+
+  const toggleGroup = (groupKey: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  };
+
+  // Group tasks by milestone
+  const milestoneMap = new Map(milestones.map(m => [m.id, m]));
+
+  const grouped: { key: string; milestone: any | null; tasks: any[] }[] = [];
+  const byMilestone = new Map<string, any[]>();
+  const unlinked: any[] = [];
+
+  for (const task of tasks) {
+    if (task.milestone_id && milestoneMap.has(task.milestone_id)) {
+      const arr = byMilestone.get(task.milestone_id) || [];
+      arr.push(task);
+      byMilestone.set(task.milestone_id, arr);
+    } else {
+      unlinked.push(task);
+    }
+  }
+
+  // Add milestone groups in milestone order
+  for (const m of milestones) {
+    const mTasks = byMilestone.get(m.id);
+    if (mTasks && mTasks.length > 0) {
+      const open = mTasks.filter(t => t.status !== 'done');
+      const done = mTasks.filter(t => t.status === 'done');
+      grouped.push({ key: m.id, milestone: m, tasks: [...open, ...done] });
+    }
+  }
+
+  // Add unlinked group
+  if (unlinked.length > 0) {
+    const open = unlinked.filter(t => t.status !== 'done');
+    const done = unlinked.filter(t => t.status === 'done');
+    grouped.push({ key: '__none__', milestone: null, tasks: [...open, ...done] });
+  }
+
+  const renderTask = (task: any, showMilestoneLink: boolean) => {
+    const isDone = task.status === 'done';
+    const isEditing = editingId === task.id;
+
+    return (
+      <li key={task.id} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isDone ? 'bg-gray-50' : 'hover:bg-gray-50'} group`}>
+        <input
+          type="checkbox"
+          checked={isDone}
+          onChange={() => handleToggle(task.id, isDone)}
+          className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+        />
+
+        {isEditing ? (
+          <div className="flex-1 flex items-center gap-2 min-w-0">
+            <input
+              ref={editInputRef}
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onKeyDown={handleEditKeyDown}
+              className="flex-1 p-1.5 text-sm border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <input
+              type="date"
+              value={editDate}
+              onChange={(e) => setEditDate(e.target.value)}
+              onKeyDown={handleEditKeyDown}
+              className="p-1.5 text-xs border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-600 w-[130px]"
+            />
+            <button onClick={saveEdit} disabled={saving} className="p-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50" title="Save">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            </button>
+            <button onClick={cancelEdit} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Cancel">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className={`text-sm font-medium truncate ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                  {task.title}
+                </p>
+                <button
+                  onClick={() => startEdit(task)}
+                  className="p-1 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                  title="Edit task"
+                >
+                  <Pencil size={13} />
+                </button>
+              </div>
+              {task.scheduled_date && (
+                <p className="text-xs text-gray-500 flex items-center mt-0.5">
+                  <Calendar size={12} className="mr-1" />
+                  {task.scheduled_date}
+                </p>
+              )}
+            </div>
+
+            {/* Milestone link button for unlinked tasks */}
+            {showMilestoneLink && !isDone && (
+              <div className="relative flex-shrink-0">
+                {linkingTaskId === task.id ? (
+                  <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-lg shadow-lg border border-gray-200 p-2 w-56">
+                    <p className="text-xs font-medium text-gray-500 mb-1.5 px-1">Link to milestone</p>
+                    {milestones.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => handleLinkMilestone(task.id, m.id)}
+                        className="w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-md transition-colors truncate"
+                      >
+                        {m.name}
+                      </button>
+                    ))}
+                    <div className="border-t border-gray-100 mt-1.5 pt-1.5">
+                      {showNewMilestone ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={newMilestoneName}
+                            onChange={(e) => setNewMilestoneName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateAndLink(task.id); if (e.key === 'Escape') { setShowNewMilestone(false); setNewMilestoneName(''); } }}
+                            placeholder="Milestone name..."
+                            className="flex-1 p-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleCreateAndLink(task.id)}
+                            disabled={creatingMilestone || !newMilestoneName.trim()}
+                            className="p-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex-shrink-0"
+                          >
+                            {creatingMilestone ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowNewMilestone(true)}
+                          className="w-full text-left px-2 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors flex items-center gap-1.5"
+                        >
+                          <PlusCircle size={14} />
+                          New milestone
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { setLinkingTaskId(null); setShowNewMilestone(false); setNewMilestoneName(''); }}
+                      className="w-full text-center text-xs text-gray-400 hover:text-gray-600 mt-1.5 py-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setLinkingTaskId(task.id)}
+                    className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all"
+                    title="Link to milestone"
+                  >
+                    <Link size={13} />
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </li>
+    );
+  };
 
   return (
     <Card className="shadow-sm border-0 rounded-xl mb-6">
@@ -137,13 +346,13 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
       </CardHeader>
       <CardContent className="p-0">
         <div className="p-4 border-b bg-gray-50/50">
-          <form onSubmit={handleAddTask} className="flex gap-2">
+          <form onSubmit={handleAddTask} className="flex gap-2 flex-wrap">
             <input
               type="text"
               placeholder="Add a new task..."
               value={newTaskTitle}
               onChange={(e) => setNewTaskTitle(e.target.value)}
-              className="flex-1 p-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 min-w-[180px] p-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <input
               type="date"
@@ -151,6 +360,18 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
               onChange={(e) => setNewTaskDate(e.target.value)}
               className="p-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-gray-600"
             />
+            {milestones.length > 0 && (
+              <select
+                value={newTaskMilestone}
+                onChange={(e) => setNewTaskMilestone(e.target.value)}
+                className="p-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-gray-600 max-w-[160px]"
+              >
+                <option value="">No milestone</option>
+                {milestones.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            )}
             <button
               type="submit"
               disabled={adding || !newTaskTitle.trim()}
@@ -161,7 +382,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
           </form>
         </div>
 
-        <div className="max-h-[400px] overflow-y-auto p-2">
+        <div className="max-h-[500px] overflow-y-auto p-2">
           {loading ? (
             <div className="flex justify-center p-8">
               <Loader2 className="animate-spin text-indigo-600" size={24} />
@@ -170,82 +391,58 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
             <div className="p-8 text-center text-gray-500">
               <p>No tasks found. Create one above!</p>
             </div>
-          ) : (
+          ) : grouped.length === 1 && !grouped[0].milestone ? (
+            // No milestones at all — render flat like before
             <ul className="space-y-1">
-              {sortedTasks.map(task => {
-                const isDone = task.status === 'done';
-                const isEditing = editingId === task.id;
+              {grouped[0].tasks.map(task => renderTask(task, false))}
+            </ul>
+          ) : (
+            <div className="space-y-3">
+              {grouped.map(group => {
+                const isCollapsed = collapsedGroups.has(group.key);
+                const doneCount = group.tasks.filter(t => t.status === 'done').length;
+                const totalCount = group.tasks.length;
+                const isNoMilestone = !group.milestone;
 
                 return (
-                  <li key={task.id} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isDone ? 'bg-gray-50' : 'hover:bg-gray-50'} group`}>
-                    <input
-                      type="checkbox"
-                      checked={isDone}
-                      onChange={() => handleToggle(task.id, isDone)}
-                      className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
-                    />
+                  <div key={group.key} className="rounded-lg border border-gray-100 overflow-hidden">
+                    {/* Group header */}
+                    <button
+                      onClick={() => toggleGroup(group.key)}
+                      className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
+                        isNoMilestone ? 'bg-amber-50/60 hover:bg-amber-50' : 'bg-indigo-50/60 hover:bg-indigo-50'
+                      }`}
+                    >
+                      {isCollapsed ? <ChevronRight size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                      <Milestone size={15} className={isNoMilestone ? 'text-amber-500' : 'text-indigo-500'} />
+                      <span className={`text-sm font-semibold flex-1 truncate ${isNoMilestone ? 'text-amber-700' : 'text-indigo-700'}`}>
+                        {isNoMilestone ? 'No Milestone' : group.milestone.name}
+                      </span>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        doneCount === totalCount
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : isNoMilestone ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
+                      }`}>
+                        {doneCount}/{totalCount}
+                      </span>
+                      {group.milestone?.target_date && (
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Calendar size={11} />
+                          {group.milestone.target_date}
+                        </span>
+                      )}
+                    </button>
 
-                    {isEditing ? (
-                      <div className="flex-1 flex items-center gap-2 min-w-0">
-                        <input
-                          ref={editInputRef}
-                          type="text"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          onKeyDown={handleEditKeyDown}
-                          className="flex-1 p-1.5 text-sm border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <input
-                          type="date"
-                          value={editDate}
-                          onChange={(e) => setEditDate(e.target.value)}
-                          onKeyDown={handleEditKeyDown}
-                          className="p-1.5 text-xs border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-600 w-[130px]"
-                        />
-                        <button
-                          onClick={saveEdit}
-                          disabled={saving}
-                          className="p-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                          title="Save"
-                        >
-                          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                          title="Cancel"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className={`text-sm font-medium truncate ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                              {task.title}
-                            </p>
-                            <button
-                              onClick={() => startEdit(task)}
-                              className="p-1 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                              title="Edit task"
-                            >
-                              <Pencil size={13} />
-                            </button>
-                          </div>
-                          {task.scheduled_date && (
-                            <p className="text-xs text-gray-500 flex items-center mt-0.5">
-                              <Calendar size={12} className="mr-1" />
-                              {task.scheduled_date}
-                            </p>
-                          )}
-                        </div>
-                      </>
+                    {/* Tasks */}
+                    {!isCollapsed && (
+                      <ul className="space-y-0.5 p-1">
+                        {group.tasks.map(task => renderTask(task, isNoMilestone))}
+                      </ul>
                     )}
-                  </li>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
         </div>
       </CardContent>
