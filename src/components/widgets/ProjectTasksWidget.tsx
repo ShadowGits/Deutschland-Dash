@@ -221,9 +221,18 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                     ) : (
                       <>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                            {task.title}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className={`text-sm font-medium truncate ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                              {task.title}
+                            </p>
+                            <button
+                              onClick={() => startEdit(task)}
+                              className="p-1 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                              title="Edit task"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          </div>
                           {task.scheduled_date && (
                             <p className="text-xs text-gray-500 flex items-center mt-0.5">
                               <Calendar size={12} className="mr-1" />
@@ -231,13 +240,6 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                             </p>
                           )}
                         </div>
-                        <button
-                          onClick={() => startEdit(task)}
-                          className="p-1.5 rounded-md text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all"
-                          title="Edit task"
-                        >
-                          <Pencil size={14} />
-                        </button>
                       </>
                     )}
                   </li>
