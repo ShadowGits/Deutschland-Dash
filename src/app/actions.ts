@@ -123,14 +123,15 @@ export async function downloadProjectFile(projectId: string, fileId: string) {
 }
 
 
-export async function addTaskToProject(projectId: string, title: string, scheduledDate?: string) {
-  const payload = { title, scheduled_date: scheduledDate };
+export async function addTaskToProject(projectId: string, title: string, scheduledDate?: string, milestoneId?: string) {
+  const payload: any = { title, scheduled_date: scheduledDate };
+  if (milestoneId) payload.milestone_id = milestoneId;
   const res = await makeRequest(`/v2/projects/${projectId}/tasks`, {
     method: 'POST',
     body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json' }
   });
-  
+
   revalidatePath('/');
   return res !== null;
 }
@@ -140,10 +141,37 @@ export async function getProjectTasks(projectId: string) {
   return res?.tasks || [];
 }
 
-export async function updateTask(taskId: string, updates: { title?: string; scheduled_date?: string; start_time?: string; estimated_minutes?: number }) {
+export async function updateTask(taskId: string, updates: { title?: string; scheduled_date?: string; start_time?: string; estimated_minutes?: number; milestone_id?: string | null }) {
   const res = await makeRequest(`/v2/day/tasks/${taskId}`, {
     method: 'PATCH',
     body: JSON.stringify(updates),
+    headers: { 'Content-Type': 'application/json' }
+  });
+  revalidatePath('/');
+  return res !== null;
+}
+
+export async function getProjectMilestones(projectId: string) {
+  const res = await makeRequest<{ milestones: any[] }>(`/v2/projects/${projectId}/milestones`);
+  return res?.milestones || [];
+}
+
+export async function createProjectMilestone(projectId: string, name: string, targetDate?: string) {
+  const payload: any = { name };
+  if (targetDate) payload.target_date = targetDate;
+  const res = await makeRequest<{ milestone: any }>(`/v2/projects/${projectId}/milestones`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
+  revalidatePath('/');
+  return res;
+}
+
+export async function linkTaskToMilestone(taskId: string, milestoneId: string | null) {
+  const res = await makeRequest(`/v2/day/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ milestone_id: milestoneId }),
     headers: { 'Content-Type': 'application/json' }
   });
   revalidatePath('/');
