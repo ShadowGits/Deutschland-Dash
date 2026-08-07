@@ -21,6 +21,7 @@ import FinanceGoalsWidget from '@/components/widgets/FinanceGoalsWidget';
 import GlobalDashboard from '@/components/GlobalDashboard';
 import WeeklyView from '@/components/WeeklyView';
 import { useSearchParams } from 'next/navigation';
+import NotificationBell from '@/components/NotificationBell';
 
 interface DashboardClientProps {
   metrics: any;
@@ -90,6 +91,7 @@ export default function DashboardClient({
           </h1>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-500">Summary for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+            <NotificationBell />
           </div>
         </header>
 
