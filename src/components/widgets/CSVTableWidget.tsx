@@ -56,7 +56,7 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
         if (liveTasks) {
           const map: Record<string, boolean> = {};
           liveTasks.forEach(t => {
-            map[t.id] = !!t.done;
+            map[t.id] = t.status === 'done';
           });
           setTasksMap(map);
         }

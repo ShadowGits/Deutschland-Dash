@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckSquare, X, Plus, Loader2, Calendar } from 'lucide-react';
-import { getProjectTasks, addTaskToProject, updateTaskStatus } from '@/app/actions';
+import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check } from 'lucide-react';
+import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask } from '@/app/actions';
 
 interface ProjectTasksWidgetProps {
   projectId: string;
@@ -17,7 +17,12 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   const [adding, setAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDate, setNewTaskDate] = useState('');
-  
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [saving, setSaving] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
   const loadTasks = async () => {
     setLoading(true);
     try {
@@ -34,13 +39,17 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     loadTasks();
   }, [projectId]);
 
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingId]);
+
   const handleToggle = async (taskId: string, currentDone: boolean) => {
-    // Optimistic update
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: currentDone ? 'todo' : 'done' } : t));
     try {
       await updateTaskStatus(taskId, !currentDone);
     } catch (e) {
-      // Revert on failure
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: currentDone ? 'done' : 'todo' } : t));
     }
   };
@@ -48,7 +57,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
-    
+
     setAdding(true);
     try {
       await addTaskToProject(projectId, newTaskTitle, newTaskDate || undefined);
@@ -62,6 +71,51 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     }
   };
 
+  const startEdit = (task: any) => {
+    setEditingId(task.id);
+    setEditTitle(task.title);
+    setEditDate(task.scheduled_date || '');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditTitle('');
+    setEditDate('');
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editTitle.trim()) return;
+    setSaving(true);
+    const original = tasks.find(t => t.id === editingId);
+    const updates: any = {};
+    if (editTitle.trim() !== original?.title) updates.title = editTitle.trim();
+    if (editDate !== (original?.scheduled_date || '')) updates.scheduled_date = editDate || null;
+
+    if (Object.keys(updates).length === 0) {
+      cancelEdit();
+      setSaving(false);
+      return;
+    }
+
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === editingId ? { ...t, ...updates } : t));
+    try {
+      await updateTask(editingId, updates);
+      cancelEdit();
+    } catch (e) {
+      // Revert
+      setTasks(prev => prev.map(t => t.id === editingId ? original : t));
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') saveEdit();
+    if (e.key === 'Escape') cancelEdit();
+  };
+
   const openTasks = tasks.filter(t => t.status !== 'done');
   const doneTasks = tasks.filter(t => t.status === 'done');
   const sortedTasks = [...openTasks, ...doneTasks];
@@ -73,7 +127,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
           <CheckSquare className="mr-2 text-indigo-600" size={20} />
           {widget.title || "Project Tasks"}
         </CardTitle>
-        <button 
+        <button
           onClick={onDelete}
           className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-colors"
           title="Remove Widget"
@@ -84,20 +138,20 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
       <CardContent className="p-0">
         <div className="p-4 border-b bg-gray-50/50">
           <form onSubmit={handleAddTask} className="flex gap-2">
-            <input 
-              type="text" 
-              placeholder="Add a new task..." 
+            <input
+              type="text"
+              placeholder="Add a new task..."
               value={newTaskTitle}
               onChange={(e) => setNewTaskTitle(e.target.value)}
               className="flex-1 p-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <input 
+            <input
               type="date"
               value={newTaskDate}
               onChange={(e) => setNewTaskDate(e.target.value)}
               className="p-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-gray-600"
             />
-            <button 
+            <button
               type="submit"
               disabled={adding || !newTaskTitle.trim()}
               className="px-4 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center"
@@ -118,27 +172,77 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
             </div>
           ) : (
             <ul className="space-y-1">
-              {sortedTasks.map(task => (
-                <li key={task.id} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${task.status === 'done' ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
-                  <input 
-                    type="checkbox" 
-                    checked={task.status === 'done'}
-                    onChange={() => handleToggle(task.id, task.status === 'done')}
-                    className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${task.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                      {task.title}
-                    </p>
-                    {task.scheduled_date && (
-                      <p className="text-xs text-gray-500 flex items-center mt-0.5">
-                        <Calendar size={12} className="mr-1" />
-                        {task.scheduled_date}
-                      </p>
+              {sortedTasks.map(task => {
+                const isDone = task.status === 'done';
+                const isEditing = editingId === task.id;
+
+                return (
+                  <li key={task.id} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isDone ? 'bg-gray-50' : 'hover:bg-gray-50'} group`}>
+                    <input
+                      type="checkbox"
+                      checked={isDone}
+                      onChange={() => handleToggle(task.id, isDone)}
+                      className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                    />
+
+                    {isEditing ? (
+                      <div className="flex-1 flex items-center gap-2 min-w-0">
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onKeyDown={handleEditKeyDown}
+                          className="flex-1 p-1.5 text-sm border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <input
+                          type="date"
+                          value={editDate}
+                          onChange={(e) => setEditDate(e.target.value)}
+                          onKeyDown={handleEditKeyDown}
+                          className="p-1.5 text-xs border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-600 w-[130px]"
+                        />
+                        <button
+                          onClick={saveEdit}
+                          disabled={saving}
+                          className="p-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                          title="Save"
+                        >
+                          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                          title="Cancel"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                            {task.title}
+                          </p>
+                          {task.scheduled_date && (
+                            <p className="text-xs text-gray-500 flex items-center mt-0.5">
+                              <Calendar size={12} className="mr-1" />
+                              {task.scheduled_date}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => startEdit(task)}
+                          className="p-1.5 rounded-md text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all"
+                          title="Edit task"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </>
                     )}
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
