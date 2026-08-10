@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder } from 'lucide-react';
+import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder, Calendar } from 'lucide-react';
 import MonthlyGoalsTable from '@/components/MonthlyGoalsTable';
 import Sidebar from '@/components/Sidebar';
 import ProjectFilesWidget from '@/components/ProjectFilesWidget';
@@ -12,7 +12,7 @@ import ProjectQnaWidget from '@/components/widgets/ProjectQnaWidget';
 import ProjectTasksWidget from '@/components/widgets/ProjectTasksWidget';
 import AddWidgetModal from '@/components/widgets/AddWidgetModal';
 import TextWidget from '@/components/widgets/TextWidget';
-import { getProjectFiles } from '@/app/actions';
+import { getProjectFiles, connectGoogleCalendar } from '@/app/actions';
 import DocumentViewerModal from '@/components/DocumentViewerModal';
 import StudyWidget from '@/components/widgets/StudyWidget';
 import BooksWidget from '@/components/widgets/BooksWidget';
@@ -90,6 +90,26 @@ export default function DashboardClient({
              activeProject ? activeProject.name : 'Dashboard'}
           </h1>
           <div className="flex items-center space-x-4">
+            <button 
+              onClick={async () => {
+                const wid = activeProjectId === 'weekly' || activeProjectId === 'dashboard' ? projects[0]?.id : (activeProject?.id || projects[0]?.id);
+                if (!wid) return;
+                try {
+                  const res = await connectGoogleCalendar(wid);
+                  if (res?.authorization_url) {
+                    window.location.href = res.authorization_url;
+                  } else {
+                    alert("Failed to get Google Calendar connection link.");
+                  }
+                } catch (e) {
+                  alert("Error connecting Google Calendar");
+                }
+              }}
+              className="px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 flex items-center border border-blue-200 transition-colors"
+            >
+              <Calendar size={14} className="mr-2" />
+              Connect Google Calendar
+            </button>
             <span className="text-sm text-gray-500">Summary for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
             <NotificationBell />
           </div>

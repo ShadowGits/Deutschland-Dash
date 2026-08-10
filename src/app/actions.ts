@@ -16,6 +16,13 @@ export async function addMonthlyGoal(projectId: string, month: string, descripti
   return res !== null;
 }
 
+export async function connectGoogleCalendar(workspaceId: string) {
+  const res = await makeRequest<{ authorization_url: string }>(`/api/workspaces/${workspaceId}/google-calendar/connect`, {
+    method: 'POST',
+  });
+  return res;
+}
+
 export async function updateMonthlyGoal(goalId: string, description: string) {
   const payload = { description };
   const res = await makeRequest(`/v2/goals/monthly/${goalId}`, {
