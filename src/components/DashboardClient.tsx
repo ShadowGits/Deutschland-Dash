@@ -92,10 +92,8 @@ export default function DashboardClient({
           <div className="flex items-center space-x-4">
             <button 
               onClick={async () => {
-                const wid = activeProjectId === 'weekly' || activeProjectId === 'dashboard' ? projects[0]?.id : (activeProject?.id || projects[0]?.id);
-                if (!wid) return;
                 try {
-                  const res = await connectGoogleCalendar(wid);
+                  const res = await connectGoogleCalendar();
                   if (res?.authorization_url) {
                     window.location.href = res.authorization_url;
                   } else {
