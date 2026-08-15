@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, BookOpen, Briefcase, Globe, Languages, GraduationCap, LineChart, Dumbbell, Music, BookOpenCheck, Settings, Calendar } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Briefcase, Globe, Languages, GraduationCap, LineChart, Dumbbell, Music, BookOpenCheck, Settings, Calendar, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -122,6 +122,24 @@ export default function Sidebar({ projects, activeProjectId, onProjectSelect }: 
             Non-Dash (Persona)
           </p>
           <nav className="space-y-1">
+            {/* Money is a view rather than a project, so it is routed like the
+                Dashboard and Week View buttons instead of by project name. */}
+            <button
+              onClick={() => onProjectSelect('money')}
+              className={cn(
+                "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left",
+                activeProjectId === 'money'
+                  ? "bg-[#1e2646] text-white"
+                  : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
+              )}
+            >
+              <Wallet className={cn(
+                "mr-3 flex-shrink-0 h-5 w-5",
+                activeProjectId === 'money' ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
+              )} />
+              Money
+            </button>
+
             {personalNames.map(name => renderProjectLink(name, iconMap[name] || LayoutDashboard))}
           </nav>
         </div>
