@@ -22,6 +22,8 @@ import GlobalDashboard from '@/components/GlobalDashboard';
 import WeeklyView from '@/components/WeeklyView';
 import { useSearchParams } from 'next/navigation';
 import NotificationBell from '@/components/NotificationBell';
+import MoneyView from '@/components/MoneyView';
+import type { MoneyMonth } from '@/lib/finance';
 
 interface DashboardClientProps {
   metrics: any;
@@ -32,6 +34,7 @@ interface DashboardClientProps {
   financeGoals?: any[];
   weekData?: any;
   projectWidgets?: Record<string, any[]>;
+  money?: MoneyMonth | null;
 }
 
 export default function DashboardClient({
@@ -42,7 +45,8 @@ export default function DashboardClient({
   germanyDocs = [],
   financeGoals = [],
   weekData = null,
-  projectWidgets = {}
+  projectWidgets = {},
+  money = null
 }: DashboardClientProps) {
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('projectId') || 'dashboard';
@@ -52,7 +56,7 @@ export default function DashboardClient({
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
 
   useEffect(() => {
-    if (activeProjectId && activeProjectId !== 'dashboard' && activeProjectId !== 'weekly') {
+    if (activeProjectId && !['dashboard', 'weekly', 'money'].includes(activeProjectId)) {
       getProjectFiles(activeProjectId).then(files => {
         setProjectFiles(files || []);
       });
@@ -85,8 +89,9 @@ export default function DashboardClient({
       <div className="flex-1 overflow-auto">
         <header className="bg-white border-b px-8 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-800">
-            {activeProjectId === 'dashboard' ? 'Global Dashboard' : 
-             activeProjectId === 'weekly' ? 'Week View' : 
+            {activeProjectId === 'dashboard' ? 'Global Dashboard' :
+             activeProjectId === 'weekly' ? 'Week View' :
+             activeProjectId === 'money' ? 'Money' :
              activeProject ? activeProject.name : 'Dashboard'}
           </h1>
           <div className="flex items-center space-x-4">
@@ -142,6 +147,14 @@ export default function DashboardClient({
             </div>
           ) : activeProjectId === 'weekly' ? (
             <WeeklyView weekData={weekData} projects={projects} />
+          ) : activeProjectId === 'money' ? (
+            money ? (
+              <MoneyView initial={money} />
+            ) : (
+              <div className="text-center py-20 text-gray-500">
+                Could not load your money data.
+              </div>
+            )
           ) : activeProject ? (
             <div className="space-y-6">
               
