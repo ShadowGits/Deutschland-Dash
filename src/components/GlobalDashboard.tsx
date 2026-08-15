@@ -14,11 +14,18 @@ interface GlobalDashboardProps {
 export default function GlobalDashboard({ metrics, projects = [], monthlyGoals = [] }: GlobalDashboardProps) {
   const [isOverdueExpanded, setIsOverdueExpanded] = useState(false);
   const [overdueTasks, setOverdueTasks] = useState(metrics?.totals?.overdue_list || []);
-  
+  // The list is capped server-side so a long backlog cannot bloat the payload,
+  // so the headline number comes from the real count, not the list length.
+  const [overdueTotal, setOverdueTotal] = useState<number>(
+    metrics?.totals?.overdue_tasks ?? (metrics?.totals?.overdue_list || []).length
+  );
+  const overdueTruncated = !!metrics?.totals?.overdue_list_truncated;
+
   const handleToggleComplete = async (taskId: string, currentDone: boolean) => {
     try {
       await updateTaskStatus(taskId, !currentDone);
       setOverdueTasks(overdueTasks.map((t: any) => t.id === taskId ? { ...t, done: !currentDone } : t));
+      setOverdueTotal((n) => Math.max(0, n + (currentDone ? 1 : -1)));
     } catch (e) {
       console.error(e);
     }
@@ -27,7 +34,9 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
   const handleDelete = async (taskId: string) => {
     try {
       await deleteTask(taskId);
+      const removed = overdueTasks.find((t: any) => t.id === taskId);
       setOverdueTasks(overdueTasks.filter((t: any) => t.id !== taskId));
+      if (removed && !removed.done) setOverdueTotal((n) => Math.max(0, n - 1));
     } catch (e) {
       console.error(e);
     }
@@ -89,7 +98,7 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-500 mb-1">Overdue</p>
-                <h3 className="text-2xl font-bold text-red-600">{overdueTasks.length || 0}</h3>
+                <h3 className="text-2xl font-bold text-red-600">{overdueTotal || 0}</h3>
               </div>
               <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center text-red-500">
                 <AlertCircle size={24} />
@@ -121,6 +130,11 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
                     </li>
                   ))}
                 </ul>
+                {overdueTruncated && (
+                  <p className="mt-3 text-xs text-gray-500 text-center">
+                    Showing the {overdueTasks.length} oldest of {overdueTotal} overdue tasks.
+                  </p>
+                )}
               </div>
             )}
             {isOverdueExpanded && overdueTasks.length === 0 && (
