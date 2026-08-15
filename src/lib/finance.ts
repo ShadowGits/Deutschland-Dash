@@ -1,4 +1,4 @@
-import { supabase, tenantFilter, isDirectReadConfigured } from '@/lib/supabase';
+import { supabase, tenantFilter, isDirectReadConfigured, activeWorkspaceId } from '@/lib/supabase';
 
 export interface Transaction {
   id: string;
@@ -139,19 +139,25 @@ export async function fetchMoneyMonth(month?: string): Promise<MoneyMonth> {
   }
 
   const { start, end, prevStart } = monthBounds(target);
-  const { data, error } = await tenantFilter(
-    supabase().from('finance_logs').select('*')
-  )
-    .gte('date', prevStart)
-    .lte('date', end)
-    .order('date', { ascending: false });
 
-  if (error) {
-    console.error('Finance read failed:', error.message);
+  let rows: Transaction[];
+  try {
+    const workspace = await activeWorkspaceId();
+    const { data, error } = await tenantFilter(
+      supabase().from('finance_logs').select('*'),
+      workspace
+    )
+      .gte('date', prevStart)
+      .lte('date', end)
+      .order('date', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    rows = (data || []) as Transaction[];
+  } catch (err) {
+    console.error('Finance read failed:', err instanceof Error ? err.message : err);
     return { month: target, monthLabel: label, transactions: [], currencies: [], configured: true };
   }
 
-  const rows = (data || []) as Transaction[];
   const inMonth = rows.filter((r) => r.date >= start && r.date <= end);
   const inPrevious = rows.filter((r) => r.date < start);
 

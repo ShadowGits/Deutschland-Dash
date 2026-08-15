@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { supabase, tenantFilter, USER_ID, WORKSPACE_ID } from '@/lib/supabase';
+import { supabase, tenantFilter, USER_ID, activeWorkspaceId } from '@/lib/supabase';
 import { fetchMoneyMonth, type MoneyMonth } from '@/lib/finance';
 
 /** Month navigation without a full page round trip. */
@@ -43,16 +43,21 @@ export async function createTransaction(input: TransactionInput) {
   const problem = validate(input);
   if (problem) return { ok: false, error: problem };
 
-  const { error } = await supabase().from('finance_logs').insert({
-    ...input,
-    description: input.description.trim(),
-    amount: Number(input.amount),
-    currency: (input.currency || 'INR').toUpperCase(),
-    user_id: USER_ID,
-    workspace_id: WORKSPACE_ID,
-  });
+  try {
+    const workspace = await activeWorkspaceId();
+    const { error } = await supabase().from('finance_logs').insert({
+      ...input,
+      description: input.description.trim(),
+      amount: Number(input.amount),
+      currency: (input.currency || 'INR').toUpperCase(),
+      user_id: USER_ID,
+      workspace_id: workspace,
+    });
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save' };
+  }
 
-  if (error) return { ok: false, error: error.message };
   revalidatePath('/');
   return { ok: true };
 }
@@ -66,21 +71,33 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
   if (payload.currency) payload.currency = String(payload.currency).toUpperCase();
   if (typeof payload.description === 'string') payload.description = payload.description.trim();
 
-  const { error } = await tenantFilter(
-    supabase().from('finance_logs').update(payload)
-  ).eq('id', id);
+  try {
+    const workspace = await activeWorkspaceId();
+    const { error } = await tenantFilter(
+      supabase().from('finance_logs').update(payload),
+      workspace
+    ).eq('id', id);
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save' };
+  }
 
-  if (error) return { ok: false, error: error.message };
   revalidatePath('/');
   return { ok: true };
 }
 
 export async function deleteTransaction(id: string) {
-  const { error } = await tenantFilter(
-    supabase().from('finance_logs').delete()
-  ).eq('id', id);
+  try {
+    const workspace = await activeWorkspaceId();
+    const { error } = await tenantFilter(
+      supabase().from('finance_logs').delete(),
+      workspace
+    ).eq('id', id);
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not delete' };
+  }
 
-  if (error) return { ok: false, error: error.message };
   revalidatePath('/');
   return { ok: true };
 }

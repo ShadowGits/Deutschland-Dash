@@ -15,7 +15,6 @@ const URL = process.env.SUPABASE_URL || '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export const USER_ID = process.env.PLANNER_USER_ID || '';
-export const WORKSPACE_ID = process.env.PLANNER_WORKSPACE_ID || '';
 
 let client: SupabaseClient | null = null;
 
@@ -34,12 +33,36 @@ export function supabase(): SupabaseClient {
 }
 
 export function isDirectReadConfigured(): boolean {
-  return Boolean(URL && SERVICE_KEY && USER_ID && WORKSPACE_ID);
+  return Boolean(URL && SERVICE_KEY && USER_ID);
 }
 
-/** Every query is scoped to the one workspace, matching the RLS policies the
- *  service role key would otherwise bypass. */
-export function tenantFilter<T>(query: T): T {
+/* The active workspace is looked up from the user id rather than configured
+ * separately — one less value to find and keep in sync, and it follows the
+ * user if they ever switch workspaces. Cached for the life of the process
+ * since it does not change under us. */
+let workspaceId: string | null = null;
+
+export async function activeWorkspaceId(): Promise<string> {
+  if (workspaceId) return workspaceId;
+
+  const { data, error } = await supabase()
+    .from('workspaces')
+    .select('id')
+    .eq('user_id', USER_ID)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`Could not resolve workspace: ${error.message}`);
+  if (!data) throw new Error('No active Planner OS workspace for this user');
+
+  workspaceId = data.id as string;
+  return workspaceId;
+}
+
+/** Scope a query to the one tenant, matching the row level security policies
+ *  that the service role key would otherwise bypass. */
+export function tenantFilter<T>(query: T, workspace: string): T {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (query as any).eq('user_id', USER_ID).eq('workspace_id', WORKSPACE_ID);
+  return (query as any).eq('user_id', USER_ID).eq('workspace_id', workspace);
 }

@@ -303,9 +303,8 @@ export default function MoneyView({ initial }: { initial: MoneyMonth }) {
         <CardContent className="p-8 text-center text-gray-500">
           <p className="font-medium text-gray-700 mb-2">Money is not connected yet</p>
           <p className="text-sm">
-            Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PLANNER_USER_ID and
-            PLANNER_WORKSPACE_ID in the dashboard environment to switch this
-            screen on.
+            Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and PLANNER_USER_ID in
+            the dashboard environment to switch this screen on.
           </p>
         </CardContent>
       </Card>
