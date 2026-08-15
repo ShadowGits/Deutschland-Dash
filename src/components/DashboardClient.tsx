@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder, Calendar } from 'lucide-react';
+import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder, Calendar, RotateCw } from 'lucide-react';
 import MonthlyGoalsTable from '@/components/MonthlyGoalsTable';
 import Sidebar from '@/components/Sidebar';
 import ProjectFilesWidget from '@/components/ProjectFilesWidget';
@@ -20,7 +20,7 @@ import GermanyDocsWidget from '@/components/widgets/GermanyDocsWidget';
 import FinanceGoalsWidget from '@/components/widgets/FinanceGoalsWidget';
 import GlobalDashboard from '@/components/GlobalDashboard';
 import WeeklyView from '@/components/WeeklyView';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import NotificationBell from '@/components/NotificationBell';
 import MoneyView from '@/components/MoneyView';
 import type { MoneyMonth } from '@/lib/finance';
@@ -55,13 +55,24 @@ export default function DashboardClient({
   const [selectedViewFile, setSelectedViewFile] = useState<any | null>(null);
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
 
+  const router = useRouter();
+  const [isRefreshing, startRefresh] = useTransition();
+  // Widgets fetch their own data when they mount. Bumping this remounts them,
+  // which is what makes a refresh reach them as well as the server data.
+  const [refreshNonce, setRefreshNonce] = useState(0);
+
+  const handleRefresh = () => {
+    setRefreshNonce((n) => n + 1);
+    startRefresh(() => router.refresh());
+  };
+
   useEffect(() => {
     if (activeProjectId && !['dashboard', 'weekly', 'money'].includes(activeProjectId)) {
       getProjectFiles(activeProjectId).then(files => {
         setProjectFiles(files || []);
       });
     }
-  }, [activeProjectId]);
+  }, [activeProjectId, refreshNonce]);
 
   // Update URL without triggering a Next.js navigation (which would cause a server re-render)
   useEffect(() => {
@@ -113,12 +124,23 @@ export default function DashboardClient({
               <Calendar size={14} className="mr-2" />
               Connect Google Calendar
             </button>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              title="Reload this view without reloading the page"
+              className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors disabled:opacity-60"
+            >
+              <RotateCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
             <span className="text-sm text-gray-500">Summary for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
             <NotificationBell />
           </div>
         </header>
 
-        <main className="p-8">
+        {/* Keyed on the refresh counter so every widget below remounts and
+            refetches — the server data alone would leave them showing stale
+            rows they fetched themselves. */}
+        <main className="p-8" key={refreshNonce}>
           {activeProjectId === 'dashboard' ? (
             <div className="space-y-6">
               <GlobalDashboard metrics={metrics} projects={projects} monthlyGoals={weekData?.monthly_goals || []} />
