@@ -60,6 +60,26 @@ export default function DashboardClient({
   // Widgets fetch their own data when they mount. Bumping this remounts them,
   // which is what makes a refresh reach them as well as the server data.
   const [refreshNonce, setRefreshNonce] = useState(0);
+  // The widget list arrives as a server prop, so a deleted widget stays on
+  // screen until the page is re-rendered. Hide it straight away and let the
+  // refresh catch up.
+  const [removedWidgets, setRemovedWidgets] = useState<Set<string>>(new Set());
+
+  const handleDeleteWidget = async (widgetId: string) => {
+    setRemovedWidgets(prev => new Set(prev).add(widgetId));
+    try {
+      const { deleteWidgetAction } = await import('@/app/actions');
+      await deleteWidgetAction(widgetId);
+      startRefresh(() => router.refresh());
+    } catch (e) {
+      console.error('Failed to remove widget', e);
+      setRemovedWidgets(prev => {
+        const next = new Set(prev);
+        next.delete(widgetId);
+        return next;
+      });
+    }
+  };
 
   const handleRefresh = () => {
     setRefreshNonce((n) => n + 1);
@@ -301,7 +321,7 @@ export default function DashboardClient({
               />
 
               {/* Dynamic Widgets Loop */}
-              {(projectWidgets[activeProject.id] || []).map((widget: any) => {
+              {(projectWidgets[activeProject.id] || []).filter((widget: any) => !removedWidgets.has(widget.id)).map((widget: any) => {
                 if (widget.widget_type === 'qna') {
                   return (
                     <ProjectQnaWidget
@@ -316,10 +336,7 @@ export default function DashboardClient({
                       key={widget.id}
                       projectId={activeProject.id}
                       projectFiles={projectFiles}
-                      onDelete={async () => {
-                        const { deleteWidgetAction } = await import('@/app/actions');
-                        await deleteWidgetAction(widget.id);
-                      }}
+                      onDelete={() => handleDeleteWidget(widget.id)}
                     />
                   );
                 }
@@ -330,10 +347,7 @@ export default function DashboardClient({
                       key={widget.id}
                       projectId={activeProject.id}
                       widget={widget}
-                      onDelete={async () => {
-                        const { deleteWidgetAction } = await import('@/app/actions');
-                        await deleteWidgetAction(widget.id);
-                      }}
+                      onDelete={() => handleDeleteWidget(widget.id)}
                     />
                   );
                 }
@@ -345,10 +359,7 @@ export default function DashboardClient({
                       projectId={activeProject.id}
                       widget={widget}
                       fileInfo={fileInfo}
-                      onDelete={async () => {
-                        const { deleteWidgetAction } = await import('@/app/actions');
-                        await deleteWidgetAction(widget.id);
-                      }}
+                      onDelete={() => handleDeleteWidget(widget.id)}
                     />
                   );
                 }
