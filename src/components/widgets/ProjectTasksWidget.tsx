@@ -5,6 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check, Milestone, ChevronDown, ChevronRight, Link, PlusCircle } from 'lucide-react';
 import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getProjectMilestones, createProjectMilestone, linkTaskToMilestone } from '@/app/actions';
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** Only the fields the table reads; the widget still passes whole task rows. */
+interface TableTask {
+  id: string;
+  title: string;
+  status: string;
+  scheduled_date?: string | null;
+  estimated_minutes?: number | null;
+  metadata?: Record<string, unknown> | null;
+}
+
 interface ProjectTasksWidgetProps {
   projectId: string;
   widget: any;
@@ -24,6 +36,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   const [editDate, setEditDate] = useState('');
   const [saving, setSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const firstOpenRowRef = useRef<HTMLTableRowElement>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Milestone linking state
@@ -157,6 +170,23 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     }
   };
 
+  // The plan runs to three hundred rows, so land on the next thing to do
+  // rather than at the top. Same behaviour the CSV tracker had. Earliest
+  // unfinished by date, not by whatever order the API returned.
+  const firstOpenId = tasks
+    .filter(t => t.status !== 'done')
+    .sort((a, b) => String(a.scheduled_date || '9999').localeCompare(String(b.scheduled_date || '9999')))[0]?.id;
+
+  useEffect(() => {
+    if (!loading && firstOpenRowRef.current) {
+      const timer = setTimeout(
+        () => firstOpenRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+        100,
+      );
+      return () => clearTimeout(timer);
+    }
+  }, [loading, firstOpenId]);
+
   const toggleGroup = (groupKey: string) => {
     setCollapsedGroups(prev => {
       const next = new Set(prev);
@@ -199,6 +229,115 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     const done = unlinked.filter(t => t.status === 'done');
     grouped.push({ key: '__none__', milestone: null, tasks: [...open, ...done] });
   }
+
+  // Columns a project brings with it, e.g. the study plan's Subject and
+  // Source. Order of first appearance, so the table reads the way the data
+  // was written rather than alphabetically.
+  const metaKeysOf = (list: TableTask[]) => {
+    const keys: string[] = [];
+    for (const t of list) {
+      for (const k of Object.keys(t.metadata || {})) {
+        if (!keys.includes(k)) keys.push(k);
+      }
+    }
+    return keys;
+  };
+
+  // A column that reads the same on every row of a group belongs in the
+  // group's header, not repeated down sixty rows. Source is identical for a
+  // whole subject; Topic would vary and stay a column.
+  const splitMeta = (list: TableTask[]) => {
+    const shared: [string, string][] = [];
+    const columns: string[] = [];
+    for (const key of metaKeysOf(list)) {
+      const values = new Set(list.map(t => String(t.metadata?.[key] ?? '')));
+      if (values.size === 1 && list.length > 1) shared.push([key, [...values][0]]);
+      else columns.push(key);
+    }
+    return { shared, columns };
+  };
+
+  const dayName = (iso?: string | null) =>
+    iso ? DAY_NAMES[new Date(`${iso}T00:00:00`).getDay()] : '';
+
+  const asHours = (minutes?: number | null) => {
+    if (!minutes) return '';
+    const hours = minutes / 60;
+    return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+  };
+
+  const renderTaskRow = (task: TableTask, columns: string[], isFirstOpen: boolean) => {
+    const isDone = task.status === 'done';
+    const isEditing = editingId === task.id;
+
+    if (isEditing) {
+      return (
+        <tr key={task.id} className="bg-indigo-50/40">
+          <td className="px-3 py-2" />
+          <td className="px-3 py-2" colSpan={4 + columns.length}>
+            <div className="flex items-center gap-2">
+              <input
+                ref={editInputRef}
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                className="flex-1 p-1.5 text-sm border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                className="p-1.5 text-xs border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-600 w-[130px]"
+              />
+              <button onClick={saveEdit} disabled={saving} className="p-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50" title="Save">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              </button>
+              <button onClick={cancelEdit} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Cancel">
+                <X size={14} />
+              </button>
+            </div>
+          </td>
+        </tr>
+      );
+    }
+
+    return (
+      <tr
+        key={task.id}
+        ref={isFirstOpen ? firstOpenRowRef : null}
+        className={`group transition-colors ${isDone ? 'bg-emerald-50/30 text-gray-400' : 'hover:bg-gray-50 text-gray-700'}`}
+      >
+        <td className="px-3 py-2 w-10 text-center">
+          <input
+            type="checkbox"
+            checked={isDone}
+            onChange={() => handleToggle(task.id, isDone)}
+            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          />
+        </td>
+        <td className={`px-3 py-2 font-medium ${isDone ? 'line-through' : 'text-gray-800'}`}>
+          <span className="flex items-center gap-1.5">
+            {task.title}
+            <button
+              onClick={() => startEdit(task)}
+              className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+              title="Edit task"
+            >
+              <Pencil size={12} />
+            </button>
+          </span>
+        </td>
+        <td className="px-3 py-2 whitespace-nowrap">{task.scheduled_date || ''}</td>
+        <td className="px-3 py-2 whitespace-nowrap">{dayName(task.scheduled_date)}</td>
+        <td className="px-3 py-2 whitespace-nowrap">{asHours(task.estimated_minutes)}</td>
+        {columns.map(key => (
+          <td key={key} className="px-3 py-2">{String(task.metadata?.[key] ?? '')}</td>
+        ))}
+      </tr>
+    );
+  };
 
   const renderTask = (task: any, showMilestoneLink: boolean) => {
     const isDone = task.status === 'done';
@@ -403,6 +542,8 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                 const doneCount = group.tasks.filter(t => t.status === 'done').length;
                 const totalCount = group.tasks.length;
                 const isNoMilestone = !group.milestone;
+                const { shared, columns } = splitMeta(group.tasks);
+                const hasMeta = shared.length > 0 || columns.length > 0;
 
                 return (
                   <div key={group.key} className="rounded-lg border border-gray-100 overflow-hidden">
@@ -433,11 +574,48 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                       )}
                     </button>
 
+                    {/* Columns this group carries that read the same on every
+                        row — the subject's textbook, say — sit here instead of
+                        repeating down the table. */}
+                    {!isCollapsed && shared.length > 0 && (
+                      <div className="flex flex-wrap gap-2 px-3 py-2 bg-white border-b border-gray-100">
+                        {shared.map(([key, value]) => (
+                          <span key={key} className="text-xs text-gray-500">
+                            <span className="font-medium text-gray-400">{key}:</span> {value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Tasks */}
                     {!isCollapsed && (
-                      <ul className="space-y-0.5 p-1">
-                        {group.tasks.map(task => renderTask(task, isNoMilestone))}
-                      </ul>
+                      hasMeta ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 w-10 text-center"><CheckSquare size={14} className="text-gray-400 inline" /></th>
+                                <th className="px-3 py-2 font-semibold">Task</th>
+                                <th className="px-3 py-2 font-semibold whitespace-nowrap">Date</th>
+                                <th className="px-3 py-2 font-semibold whitespace-nowrap">Day</th>
+                                <th className="px-3 py-2 font-semibold whitespace-nowrap">Hours</th>
+                                {columns.map(key => (
+                                  <th key={key} className="px-3 py-2 font-semibold whitespace-nowrap">{key}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {[...group.tasks]
+                                .sort((a, b) => String(a.scheduled_date || '9999').localeCompare(String(b.scheduled_date || '9999')))
+                                .map(task => renderTaskRow(task, columns, task.id === firstOpenId))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <ul className="space-y-0.5 p-1">
+                          {group.tasks.map(task => renderTask(task, isNoMilestone))}
+                        </ul>
+                      )
                     )}
                   </div>
                 );
