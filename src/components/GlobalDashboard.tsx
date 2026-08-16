@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { updateTaskStatus, deleteTask } from '@/lib/api';
 
 interface GlobalDashboardProps {
@@ -21,24 +21,61 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
   );
   const overdueTruncated = !!metrics?.totals?.overdue_list_truncated;
 
-  const handleToggleComplete = async (taskId: string, currentDone: boolean) => {
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+
+  // Fresh metrics arrive as a prop, and useState only reads its argument once,
+  // so without this the list ignores the refresh button and any navigation.
+  // Keyed on a string rather than the object, which would be a new identity
+  // on every render.
+  const overdueSignature = `${metrics?.totals?.overdue_tasks ?? 0}:${(metrics?.totals?.overdue_list || [])
+    .map((t: any) => t.id)
+    .join(',')}`;
+
+  useEffect(() => {
+    setOverdueTasks(metrics?.totals?.overdue_list || []);
+    setOverdueTotal(
+      metrics?.totals?.overdue_tasks ?? (metrics?.totals?.overdue_list || []).length
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overdueSignature]);
+
+  const markPending = (taskId: string, busy: boolean) =>
+    setPendingIds(prev => {
+      const next = new Set(prev);
+      if (busy) next.add(taskId);
+      else next.delete(taskId);
+      return next;
+    });
+
+  // Ticking one drops it from the list: a task you have just finished is not
+  // overdue any more. Every update goes through the functional form, because
+  // these await first and the previous version read a list captured before
+  // the request started — so two quick clicks put the first one back.
+  const handleComplete = async (taskId: string) => {
+    if (pendingIds.has(taskId)) return;
+    markPending(taskId, true);
     try {
-      await updateTaskStatus(taskId, !currentDone);
-      setOverdueTasks(overdueTasks.map((t: any) => t.id === taskId ? { ...t, done: !currentDone } : t));
-      setOverdueTotal((n) => Math.max(0, n + (currentDone ? 1 : -1)));
+      await updateTaskStatus(taskId, true);
+      setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
+      setOverdueTotal((n) => Math.max(0, n - 1));
     } catch (e) {
       console.error(e);
+    } finally {
+      markPending(taskId, false);
     }
   };
 
   const handleDelete = async (taskId: string) => {
+    if (pendingIds.has(taskId)) return;
+    markPending(taskId, true);
     try {
       await deleteTask(taskId);
-      const removed = overdueTasks.find((t: any) => t.id === taskId);
-      setOverdueTasks(overdueTasks.filter((t: any) => t.id !== taskId));
-      if (removed && !removed.done) setOverdueTotal((n) => Math.max(0, n - 1));
+      setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
+      setOverdueTotal((n) => Math.max(0, n - 1));
     } catch (e) {
       console.error(e);
+    } finally {
+      markPending(taskId, false);
     }
   };
   const totals = metrics?.totals || {};
@@ -113,17 +150,19 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
                       <div className="flex items-center gap-3 overflow-hidden">
                         <input 
                           type="checkbox"
-                          checked={!!task.done}
-                          onChange={() => handleToggleComplete(task.id, !!task.done)}
-                          className="h-5 w-5 rounded border-red-300 text-red-600 focus:ring-red-500 cursor-pointer flex-shrink-0"
+                          checked={false}
+                          disabled={pendingIds.has(task.id)}
+                          onChange={() => handleComplete(task.id)}
+                          className="h-5 w-5 rounded border-red-300 text-red-600 focus:ring-red-500 cursor-pointer flex-shrink-0 disabled:opacity-40"
                         />
-                        <span className={`text-sm font-medium ${task.done ? 'line-through text-gray-400' : 'text-gray-800'} truncate`}>
+                        <span className={`text-sm font-medium truncate ${pendingIds.has(task.id) ? 'text-gray-400' : 'text-gray-800'}`}>
                           {task.title}
                         </span>
                       </div>
                       <button 
                         onClick={() => handleDelete(task.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors ml-2 flex-shrink-0"
+                        disabled={pendingIds.has(task.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors ml-2 flex-shrink-0 disabled:opacity-40"
                       >
                         <Trash2 size={18} />
                       </button>
