@@ -243,19 +243,14 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     return keys;
   };
 
-  // A column that reads the same on every row of a group belongs in the
-  // group's header, not repeated down sixty rows. Source is identical for a
-  // whole subject; Topic would vary and stay a column.
-  const splitMeta = (list: TableTask[]) => {
-    const shared: [string, string][] = [];
-    const columns: string[] = [];
-    for (const key of metaKeysOf(list)) {
-      const values = new Set(list.map(t => String(t.metadata?.[key] ?? '')));
-      if (values.size === 1 && list.length > 1) shared.push([key, [...values][0]]);
-      else columns.push(key);
-    }
-    return { shared, columns };
-  };
+  // Every column the project tracks becomes a table column. The one
+  // exception is a column that just restates the milestone it sits under —
+  // Subject reads "Linear algebra" under a milestone already called that.
+  const metaColumns = (list: TableTask[], milestoneName?: string) =>
+    metaKeysOf(list).filter(key => {
+      if (!milestoneName) return true;
+      return !list.every(t => String(t.metadata?.[key] ?? '') === milestoneName);
+    });
 
   const dayName = (iso?: string | null) =>
     iso ? DAY_NAMES[new Date(`${iso}T00:00:00`).getDay()] : '';
@@ -542,8 +537,8 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                 const doneCount = group.tasks.filter(t => t.status === 'done').length;
                 const totalCount = group.tasks.length;
                 const isNoMilestone = !group.milestone;
-                const { shared, columns } = splitMeta(group.tasks);
-                const hasMeta = shared.length > 0 || columns.length > 0;
+                const columns = metaColumns(group.tasks, group.milestone?.name);
+                const hasMeta = metaKeysOf(group.tasks).length > 0;
 
                 return (
                   <div key={group.key} className="rounded-lg border border-gray-100 overflow-hidden">
@@ -573,19 +568,6 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                         </span>
                       )}
                     </button>
-
-                    {/* Columns this group carries that read the same on every
-                        row — the subject's textbook, say — sit here instead of
-                        repeating down the table. */}
-                    {!isCollapsed && shared.length > 0 && (
-                      <div className="flex flex-wrap gap-2 px-3 py-2 bg-white border-b border-gray-100">
-                        {shared.map(([key, value]) => (
-                          <span key={key} className="text-xs text-gray-500">
-                            <span className="font-medium text-gray-400">{key}:</span> {value}
-                          </span>
-                        ))}
-                      </div>
-                    )}
 
                     {/* Tasks */}
                     {!isCollapsed && (
