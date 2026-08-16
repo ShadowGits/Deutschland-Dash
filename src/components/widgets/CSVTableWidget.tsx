@@ -3,15 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, FileSpreadsheet, Loader2, CheckSquare, Upload } from 'lucide-react';
+import { Table, FileSpreadsheet, Loader2, CheckSquare, Upload, X } from 'lucide-react';
 import { downloadProjectFile, getProjectTasks, updateTaskStatus, uploadProjectFile, getProjectFiles } from '@/app/actions';
 
 interface CSVTableWidgetProps {
   projectId?: string;
   projectFiles?: any[];
+  onDelete?: () => Promise<void>;
 }
 
-export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTableWidgetProps) {
+export default function CSVTableWidget({ projectId, projectFiles = [], onDelete }: CSVTableWidgetProps) {
   const [data, setData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string>('');
@@ -174,6 +175,16 @@ export default function CSVTableWidget({ projectId, projectFiles = [] }: CSVTabl
             {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
             <span>Upload</span>
           </button>
+
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-colors"
+              title="Remove Widget"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       </CardHeader>
       

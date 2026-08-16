@@ -316,6 +316,10 @@ export default function DashboardClient({
                       key={widget.id}
                       projectId={activeProject.id}
                       projectFiles={projectFiles}
+                      onDelete={async () => {
+                        const { deleteWidgetAction } = await import('@/app/actions');
+                        await deleteWidgetAction(widget.id);
+                      }}
                     />
                   );
                 }
