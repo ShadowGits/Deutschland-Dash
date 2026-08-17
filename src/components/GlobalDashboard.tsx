@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 // Server actions, not the lib/api versions: those run in the browser, where
 // the planner app key does not exist, so every write came back 401.
 import { updateTaskStatus, deleteTaskAction } from '@/app/actions';
@@ -24,6 +25,7 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
   const overdueTruncated = !!metrics?.totals?.overdue_list_truncated;
 
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const router = useRouter();
 
   // Fresh metrics arrive as a prop, and useState only reads its argument once,
   // so without this the list ignores the refresh button and any navigation.
@@ -62,6 +64,9 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
       if (!(await updateTaskStatus(taskId, true))) return;
       setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
       setOverdueTotal((n) => Math.max(0, n - 1));
+      // The action drops the server's cached copy of the page; this makes the
+      // browser go and collect the fresh one instead of keeping the old props.
+      router.refresh();
     } catch (e) {
       console.error(e);
     } finally {
@@ -76,6 +81,7 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
       if (!(await deleteTaskAction(taskId))) return;
       setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
       setOverdueTotal((n) => Math.max(0, n - 1));
+      router.refresh();
     } catch (e) {
       console.error(e);
     } finally {
