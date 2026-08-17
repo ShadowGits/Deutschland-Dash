@@ -235,3 +235,14 @@ export async function updateWidgetAction(widgetId: string, data: { title?: strin
   });
   revalidatePath('/');
 }
+
+// Task writes have to happen here rather than in the browser: the planner API
+// needs the app key, which is a server-only variable, so a fetch made from the
+// page carries no key and comes back 401. makeRequest returns null rather than
+// throwing, so that failure looked like success and the task only reappeared
+// on the next reload.
+export async function deleteTaskAction(taskId: string) {
+  const res = await makeRequest(`/v2/day/tasks/${taskId}`, { method: 'DELETE' });
+  revalidatePath('/');
+  return res !== null;
+}

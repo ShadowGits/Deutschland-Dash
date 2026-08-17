@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar as CalendarIcon, Clock, Flame, Target, RefreshCw } from 'lucide-react';
 import { format, parseISO, isSameDay, addDays } from 'date-fns';
-import { updateTaskStatus } from '@/lib/api';
+// Server action: a tick sent from the browser carries no app key and 401s.
+import { updateTaskStatus } from '@/app/actions';
 
 interface WeeklyViewProps {
   weekData: any;
@@ -39,7 +40,9 @@ export default function WeeklyView({ weekData, projects = [] }: WeeklyViewProps)
     
     // API call
     try {
-      await updateTaskStatus(taskId, newDone);
+      if (!(await updateTaskStatus(taskId, newDone))) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: currentDone } : t));
+      }
     } catch (e) {
       // Revert on failure
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: currentDone } : t));

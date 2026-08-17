@@ -58,14 +58,6 @@ export async function fetchWeekView(dateStr?: string) {
   return await makeRequest<any>(path);
 }
 
-export async function updateTaskStatus(taskId: string, done: boolean) {
-  return await makeRequest<any>(`/v2/day/tasks/${taskId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ done })
-  });
-}
-
 export async function fetchStudyTopics() {
   const res = await makeRequest<{ topics: any[] }>('/v2/study/topics');
   return res?.topics || [];
@@ -91,9 +83,9 @@ export async function fetchProjectFiles(projectId: string) {
   return res?.files || [];
 }
 
-export async function deleteTask(taskId: string) {
-  return makeRequest(`/v2/day/tasks/${taskId}`, { method: 'DELETE' });
-}
+// Task writes deliberately live in src/app/actions.ts only. This module is
+// imported by client components too, and the app key it needs is server-only,
+// so a write from here silently 401s.
 
 export async function fetchProjectTable(projectId: string, tableName: string) {
   const res = await makeRequest<{ [key: string]: any[] }>(`/v2/projects/${projectId}/${tableName}`);

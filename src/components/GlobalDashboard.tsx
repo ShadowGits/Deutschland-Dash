@@ -3,7 +3,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { updateTaskStatus, deleteTask } from '@/lib/api';
+// Server actions, not the lib/api versions: those run in the browser, where
+// the planner app key does not exist, so every write came back 401.
+import { updateTaskStatus, deleteTaskAction } from '@/app/actions';
 
 interface GlobalDashboardProps {
   metrics: any;
@@ -55,7 +57,9 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
     if (pendingIds.has(taskId)) return;
     markPending(taskId, true);
     try {
-      await updateTaskStatus(taskId, true);
+      // The action reports failure by returning false, so leave the task in
+      // the list rather than hiding a save that never happened.
+      if (!(await updateTaskStatus(taskId, true))) return;
       setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
       setOverdueTotal((n) => Math.max(0, n - 1));
     } catch (e) {
@@ -69,7 +73,7 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
     if (pendingIds.has(taskId)) return;
     markPending(taskId, true);
     try {
-      await deleteTask(taskId);
+      if (!(await deleteTaskAction(taskId))) return;
       setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
       setOverdueTotal((n) => Math.max(0, n - 1));
     } catch (e) {
