@@ -38,6 +38,14 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   const editInputRef = useRef<HTMLInputElement>(null);
   const firstOpenRowRef = useRef<HTMLTableRowElement>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Which milestones have had their full rows fetched. A project the size of
+  // Study is 257kB of JSON if every group is loaded at once, and that read was
+  // most of the database egress for the whole app — so only the group you open
+  // pays for its detail.
+  const [loadedGroups, setLoadedGroups] = useState<Set<string>>(new Set());
+  const [loadingGroup, setLoadingGroup] = useState<string | null>(null);
+
+  const DETAIL_FIELDS = 'id,title,status,scheduled_date,estimated_minutes,milestone_id,metadata';
 
   // Milestone linking state
   const [linkingTaskId, setLinkingTaskId] = useState<string | null>(null);
@@ -48,14 +56,15 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   const loadData = async () => {
     setLoading(true);
     try {
+      // Just enough to draw the group headers, their counts and the ordering.
+      // Titles and metadata arrive per group, when a group is opened.
       const [taskData, milestoneData] = await Promise.all([
-        // Exactly the columns rendered below. Dropping notes and the tenant
-        // and timestamp columns roughly halves this for a big project.
-        getProjectTasks(projectId, 'id,title,status,scheduled_date,estimated_minutes,milestone_id,metadata'),
+        getProjectTasks(projectId, 'id,status,scheduled_date,milestone_id'),
         getProjectMilestones(projectId),
       ]);
       setTasks(taskData || []);
       setMilestones(milestoneData || []);
+      setLoadedGroups(new Set());
     } catch (e) {
       console.error(e);
     } finally {
@@ -189,14 +198,57 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     }
   }, [loading, firstOpenId]);
 
+  /** Fetch the titles and metadata for one milestone, once. */
+  const loadGroup = async (groupKey: string) => {
+    if (loadedGroups.has(groupKey) || loadingGroup === groupKey) return;
+    setLoadingGroup(groupKey);
+    try {
+      const rows = await getProjectTasks(
+        projectId,
+        DETAIL_FIELDS,
+        groupKey === '__none__' ? undefined : groupKey,
+      );
+      const detail = new Map((rows || []).map((r: any) => [r.id, r]));
+      setTasks(prev => prev.map(t => (detail.has(t.id) ? { ...t, ...detail.get(t.id) } : t)));
+      setLoadedGroups(prev => new Set(prev).add(groupKey));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingGroup(null);
+    }
+  };
+
   const toggleGroup = (groupKey: string) => {
     setCollapsedGroups(prev => {
       const next = new Set(prev);
-      if (next.has(groupKey)) next.delete(groupKey);
-      else next.add(groupKey);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+        loadGroup(groupKey);
+      } else {
+        next.add(groupKey);
+      }
       return next;
     });
   };
+
+  // Everything starts closed, and the group holding the next unfinished task
+  // opens itself — which is the one being looked at anyway. Opening the rest
+  // costs a small request each rather than everything up front.
+  const initialOpenDone = useRef(false);
+  useEffect(() => {
+    if (loading || initialOpenDone.current || tasks.length === 0) return;
+    initialOpenDone.current = true;
+    const next = tasks
+      .filter(t => t.status !== 'done')
+      .sort((a, b) => String(a.scheduled_date || '9999').localeCompare(String(b.scheduled_date || '9999')))[0];
+    const openKey = next?.milestone_id || '__none__';
+    const closed = new Set<string>(milestones.map((m: any) => m.id));
+    closed.add('__none__');
+    closed.delete(openKey);
+    setCollapsedGroups(closed);
+    loadGroup(openKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, tasks.length, milestones.length]);
 
   // Group tasks by milestone
   const milestoneMap = new Map(milestones.map(m => [m.id, m]));

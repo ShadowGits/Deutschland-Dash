@@ -146,8 +146,11 @@ export async function addTaskToProject(projectId: string, title: string, schedul
 // fields trims the response to the columns the caller actually reads. A task
 // row carries notes and a metadata blob — for Study that is 300kB of JSON —
 // so a screen wanting only tick state should say so.
-export async function getProjectTasks(projectId: string, fields?: string) {
-  const query = fields ? `?fields=${encodeURIComponent(fields)}` : '';
+export async function getProjectTasks(projectId: string, fields?: string, milestoneId?: string) {
+  const params = new URLSearchParams();
+  if (fields) params.set('fields', fields);
+  if (milestoneId) params.set('milestone_id', milestoneId);
+  const query = params.toString() ? `?${params}` : '';
   const res = await makeRequest<{ tasks: any[] }>(`/v2/projects/${projectId}/tasks${query}`);
   return res?.tasks || [];
 }
