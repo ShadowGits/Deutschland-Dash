@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 // Server actions, not the lib/api versions: those run in the browser, where
 // the planner app key does not exist, so every write came back 401.
@@ -26,6 +26,19 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
 
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const router = useRouter();
+
+  // Refetching the page costs seven API calls, so do it once the ticking
+  // stops rather than once per tick. The list has already removed the task
+  // itself; this is only here so the other counts catch up and so a reload
+  // does not serve the cached page from before the change.
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => router.refresh(), 1500);
+  };
+  useEffect(() => () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+  }, []);
 
   // Fresh metrics arrive as a prop, and useState only reads its argument once,
   // so without this the list ignores the refresh button and any navigation.
@@ -64,9 +77,7 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
       if (!(await updateTaskStatus(taskId, true))) return;
       setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
       setOverdueTotal((n) => Math.max(0, n - 1));
-      // The action drops the server's cached copy of the page; this makes the
-      // browser go and collect the fresh one instead of keeping the old props.
-      router.refresh();
+      scheduleRefresh();
     } catch (e) {
       console.error(e);
     } finally {
@@ -81,7 +92,7 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
       if (!(await deleteTaskAction(taskId))) return;
       setOverdueTasks((prev: any[]) => prev.filter((t: any) => t.id !== taskId));
       setOverdueTotal((n) => Math.max(0, n - 1));
-      router.refresh();
+      scheduleRefresh();
     } catch (e) {
       console.error(e);
     } finally {
