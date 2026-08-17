@@ -51,7 +51,8 @@ export default function CSVTableWidget({ projectId, projectFiles = [], onDelete 
         // Fetch raw CSV and Live Tasks in parallel
         const [csvText, liveTasks] = await Promise.all([
           downloadProjectFile(projectId, selectedFileId),
-          getProjectTasks(projectId)
+          // Only the tick state is read below, so ask for nothing else.
+          getProjectTasks(projectId, 'id,status')
         ]);
 
         if (liveTasks) {

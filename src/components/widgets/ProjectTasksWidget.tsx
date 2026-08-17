@@ -49,7 +49,9 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     setLoading(true);
     try {
       const [taskData, milestoneData] = await Promise.all([
-        getProjectTasks(projectId),
+        // Exactly the columns rendered below. Dropping notes and the tenant
+        // and timestamp columns roughly halves this for a big project.
+        getProjectTasks(projectId, 'id,title,status,scheduled_date,estimated_minutes,milestone_id,metadata'),
         getProjectMilestones(projectId),
       ]);
       setTasks(taskData || []);
