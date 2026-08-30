@@ -31,8 +31,14 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
     loadData();
   }, [projectId]);
 
+  // Nothing stopped a second click while the first was still in flight, and a
+  // cold server takes seconds to answer — so an impatient second tap on Save
+  // created the entry twice.
+  const [saving, setSaving] = useState(false);
+
   const handleSave = async (id?: string) => {
-    if (!question.trim()) return;
+    if (!question.trim() || saving) return;
+    setSaving(true);
     try {
       if (id) {
         await updateQnaAction(id, { question, answer, status });
@@ -47,6 +53,8 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
       setStatus("Drafting");
     } catch (e) {
       console.error("Failed to save QnA", e);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -142,7 +150,7 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
                   </select>
                   <div className="flex space-x-2">
                     <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                    <button onClick={() => handleSave()} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center space-x-1">
+                    <button onClick={() => handleSave()} disabled={saving} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1">
                       <Check size={16} />
                       <span>Save Question</span>
                     </button>
@@ -181,7 +189,7 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
                       </select>
                       <div className="flex space-x-2">
                         <button onClick={() => setEditingId(null)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                        <button onClick={() => handleSave(q.id)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save</button>
+                        <button onClick={() => handleSave(q.id)} disabled={saving} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
                       </div>
                     </div>
                   </div>
