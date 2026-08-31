@@ -371,7 +371,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
             {task.title}
             <button
               onClick={() => startEdit(task)}
-              className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+              className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 transition-all flex-shrink-0"
               title="Edit task"
             >
               <Pencil size={12} />
@@ -434,7 +434,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                 </p>
                 <button
                   onClick={() => startEdit(task)}
-                  className="p-1 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                  className="p-1 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 transition-all flex-shrink-0"
                   title="Edit task"
                 >
                   <Pencil size={13} />
@@ -503,7 +503,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                 ) : (
                   <button
                     onClick={() => setLinkingTaskId(task.id)}
-                    className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all"
+                    className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 transition-all"
                     title="Link to milestone"
                   >
                     <Link size={13} />

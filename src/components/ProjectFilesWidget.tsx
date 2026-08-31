@@ -213,7 +213,7 @@ export default function ProjectFilesWidget({ projectId, files: initialFiles, onV
 
                   <button
                     onClick={() => handleDelete(file.id)}
-                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                    className="text-gray-300 hover:text-red-500 opacity-60 group-hover:opacity-100 transition-opacity p-1"
                     title="Delete File"
                   >
                     <Trash2 size={16} />

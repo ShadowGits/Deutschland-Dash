@@ -216,7 +216,7 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
                     </div>
                     
                     {/* Action buttons (fade in on hover) */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1 ml-4">
+                    <div className="opacity-60 group-hover:opacity-100 transition-opacity flex space-x-1 ml-4">
                       <button onClick={() => startEdit(q)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg">
                         <Edit2 size={16} />
                       </button>

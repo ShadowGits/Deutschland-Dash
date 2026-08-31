@@ -115,7 +115,7 @@ export default function MonthlyGoalsTable({
               </TableCell>
               
               <TableCell className="text-right">
-                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                   {editingId === goal.id ? (
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" onClick={() => handleSaveEdit(goal.id)} disabled={isPending}>
                       <Save size={16} />
