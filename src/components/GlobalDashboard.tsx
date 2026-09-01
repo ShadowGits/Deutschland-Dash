@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2 } from 'lucide-react';
+import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 // Server actions, not the lib/api versions: those run in the browser, where
@@ -26,6 +26,29 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
 
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const router = useRouter();
+
+  // Streaks you would rather not see on the dashboard (e.g. "talk to mom").
+  // Kept in this browser only — a lightweight per-device convenience, not
+  // shared state — so hiding one never touches the data or other viewers.
+  const HIDDEN_STREAKS_KEY = 'hidden-streaks';
+  const [hiddenStreaks, setHiddenStreaks] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_STREAKS_KEY);
+      if (raw) setHiddenStreaks(new Set(JSON.parse(raw)));
+    } catch { /* private mode or cleared storage: show everything */ }
+  }, []);
+  const hideStreak = (key: string) => {
+    setHiddenStreaks(prev => {
+      const next = new Set(prev).add(key);
+      try { localStorage.setItem(HIDDEN_STREAKS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+  const unhideAllStreaks = () => {
+    setHiddenStreaks(new Set());
+    try { localStorage.removeItem(HIDDEN_STREAKS_KEY); } catch {}
+  };
 
   // Refetching the page costs seven API calls, so do it once the ticking
   // stops rather than once per tick. The list has already removed the task
@@ -303,12 +326,24 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
-              {Object.entries(streaks).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+              {Object.entries(streaks)
+                .filter(([key]) => !hiddenStreaks.has(key))
+                .map(([key, value]) => (
+                <div key={key} className="group flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
                   <span className="capitalize font-medium text-gray-700">{key}</span>
-                  <div className="flex items-center font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
-                    <Flame size={16} className="mr-1" />
-                    {Number(value)} Days
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                      <Flame size={16} className="mr-1" />
+                      {Number(value)} Days
+                    </div>
+                    <button
+                      onClick={() => hideStreak(key)}
+                      aria-label={`Hide ${key} streak`}
+                      title="Hide from dashboard"
+                      className="opacity-60 group-hover:opacity-100 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md p-1 transition-colors"
+                    >
+                      <X size={15} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -316,6 +351,20 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
                 <div className="text-center text-gray-500 text-sm">
                   No streaks tracked yet.
                 </div>
+              )}
+              {Object.keys(streaks).length > 0 &&
+                Object.keys(streaks).every(k => hiddenStreaks.has(k)) && (
+                <div className="text-center text-gray-500 text-sm">
+                  All streaks hidden.
+                </div>
+              )}
+              {hiddenStreaks.size > 0 && (
+                <button
+                  onClick={unhideAllStreaks}
+                  className="w-full text-center text-xs text-gray-400 hover:text-gray-600 pt-1"
+                >
+                  Show {hiddenStreaks.size} hidden {hiddenStreaks.size === 1 ? 'streak' : 'streaks'}
+                </button>
               )}
             </CardContent>
           </Card>
