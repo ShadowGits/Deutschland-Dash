@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, Flame, Target, RefreshCw } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Flame, Target, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { format, parseISO, isSameDay, addDays } from 'date-fns';
-// Server action: a tick sent from the browser carries no app key and 401s.
-import { updateTaskStatus } from '@/app/actions';
+// Server actions: a request from the browser carries no app key and 401s.
+import { updateTaskStatus, getWeekAction } from '@/app/actions';
 
 interface WeeklyViewProps {
   weekData: any;
@@ -13,13 +13,36 @@ interface WeeklyViewProps {
 }
 
 export default function WeeklyView({ weekData, projects = [] }: WeeklyViewProps) {
-  const [tasks, setTasks] = useState<any[]>(weekData?.items || []);
-  const weeklyGoals = weekData?.weekly_goals || [];
-  
-  // Use week_start if provided, otherwise today
+  // Habits belong in the day view, not the weekly grid, so they are dropped here.
+  const stripHabits = (items: any[]) => (items || []).filter((t: any) => !t.is_habit);
+
+  const [tasks, setTasks] = useState<any[]>(stripHabits(weekData?.items));
+  const [weeklyGoals, setWeeklyGoals] = useState<any[]>(weekData?.weekly_goals || []);
+  const [weekStartStr, setWeekStartStr] = useState<string | undefined>(weekData?.week_start);
+  const [loadingWeek, setLoadingWeek] = useState(false);
+
   const today = new Date();
-  const weekStartStr = weekData?.week_start;
   const startDate = weekStartStr ? parseISO(weekStartStr) : today;
+
+  // Fetch a different week through the server action and swap it in. The date
+  // handed in can be any day inside the target week; the API returns its start.
+  const goToWeek = async (anchor: Date) => {
+    setLoadingWeek(true);
+    try {
+      const data = await getWeekAction(format(anchor, 'yyyy-MM-dd'));
+      if (data) {
+        setTasks(stripHabits(data.items));
+        setWeeklyGoals(data.weekly_goals || []);
+        setWeekStartStr(data.week_start);
+      }
+    } finally {
+      setLoadingWeek(false);
+    }
+  };
+  const prevWeek = () => goToWeek(addDays(startDate, -7));
+  const nextWeek = () => goToWeek(addDays(startDate, 7));
+  const thisWeek = () => goToWeek(new Date());
+
 
   // Generate 7 days
   const daysOfWeek = Array.from({ length: 7 }).map((_, i) => {
@@ -57,13 +80,38 @@ export default function WeeklyView({ weekData, projects = [] }: WeeklyViewProps)
           <CalendarIcon className="mr-3 text-indigo-500" size={28} />
           Weekly Plan
         </h2>
-        <button 
-          onClick={() => window.location.reload()}
-          className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-md font-medium transition-colors text-sm"
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={prevWeek}
+            disabled={loadingWeek}
+            aria-label="Previous week"
+            className="p-1.5 bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-md transition-colors disabled:opacity-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-[150px] text-center text-sm font-medium text-gray-700 flex items-center justify-center">
+            {loadingWeek ? (
+              <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+            ) : (
+              <span>{format(startDate, 'MMM d')} – {format(addDays(startDate, 6), 'MMM d')}</span>
+            )}
+          </div>
+          <button
+            onClick={nextWeek}
+            disabled={loadingWeek}
+            aria-label="Next week"
+            className="p-1.5 bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-md transition-colors disabled:opacity-50"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <button
+            onClick={thisWeek}
+            disabled={loadingWeek}
+            className="ml-1 px-3 py-1.5 bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-md font-medium transition-colors text-sm disabled:opacity-50"
+          >
+            This week
+          </button>
+        </div>
       </div>
 
       {/* Goals Banners */}

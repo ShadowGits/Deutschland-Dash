@@ -253,3 +253,11 @@ export async function deleteTaskAction(taskId: string) {
   revalidatePath('/');
   return res !== null;
 }
+
+// Fetch the week containing `dateStr` (any day in it). Runs on the server so it
+// carries the app key; a browser fetch would 401. Lets the weekly view page
+// back and forth through weeks without a full navigation.
+export async function getWeekAction(dateStr: string) {
+  const res = await makeRequest<any>(`/v2/week?date=${encodeURIComponent(dateStr)}`);
+  return res || null;
+}
