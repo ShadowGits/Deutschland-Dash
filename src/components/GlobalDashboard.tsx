@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import MilestoneHealth from '@/components/MilestoneHealth';
 import { Target, CheckCircle2, TrendingUp, AlertCircle, Calendar, Flame, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -132,6 +133,7 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
   const totals = metrics?.totals || {};
   const streaks = metrics?.streaks || {};
   const upcomingDeadlines = metrics?.upcoming_deadlines || [];
+  const milestoneHealth = metrics?.milestone_health || [];
 
   return (
     <div className="space-y-6">
@@ -262,6 +264,8 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
           </CardContent>
         </Card>
       )}
+
+      <MilestoneHealth milestones={milestoneHealth} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
