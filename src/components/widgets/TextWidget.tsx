@@ -78,13 +78,31 @@ export default function TextWidget({ projectId, widget, fileInfo, onDelete }: Te
   // so the button never steals focus and loses the selection.
   const exec = (command: string, value?: string) => {
     contentRef.current?.focus();
+    // Emit real tags (<b>, <ul>) rather than inline styles, so the saved HTML
+    // stays clean and the .rich-text rules can style it.
+    try { document.execCommand('styleWithCSS', false, 'false'); } catch { /* not supported everywhere */ }
     document.execCommand(command, false, value);
   };
-  const Tool = ({ cmd, value, title, children }: any) => (
+  // Heading acts as a toggle: pressing it inside an existing heading drops the
+  // line back to a paragraph rather than doing nothing.
+  const toggleHeading = () => {
+    let node = window.getSelection()?.anchorNode as Node | null;
+    let inHeading = false;
+    while (node && node !== contentRef.current) {
+      if (node.nodeType === 1 && /^H[1-6]$/.test((node as HTMLElement).tagName)) {
+        inHeading = true;
+        break;
+      }
+      node = node.parentNode;
+    }
+    exec('formatBlock', inHeading ? '<p>' : '<h3>');
+  };
+
+  const Tool = ({ cmd, value, title, run, children }: any) => (
     <button
       type="button"
       title={title}
-      onMouseDown={(e) => { e.preventDefault(); exec(cmd, value); }}
+      onMouseDown={(e) => { e.preventDefault(); run ? run() : exec(cmd, value); }}
       className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
     >
       {children}
@@ -129,13 +147,13 @@ export default function TextWidget({ projectId, widget, fileInfo, onDelete }: Te
                   <span className="w-px h-5 bg-gray-200 mx-1" />
                   <Tool cmd="insertUnorderedList" title="Bulleted list"><List size={16} /></Tool>
                   <Tool cmd="insertOrderedList" title="Numbered list"><ListOrdered size={16} /></Tool>
-                  <Tool cmd="formatBlock" value="h3" title="Heading"><Heading2 size={16} /></Tool>
+                  <Tool run={toggleHeading} title="Heading"><Heading2 size={16} /></Tool>
                   <span className="w-px h-5 bg-gray-200 mx-1" />
                   <Tool cmd="removeFormat" title="Clear formatting"><RemoveFormatting size={16} /></Tool>
                 </div>
                 <div
                   ref={contentRef}
-                  className="flex-1 w-full p-6 outline-none overflow-y-auto prose prose-sm max-w-none text-gray-800"
+                  className="rich-text flex-1 w-full p-6 outline-none overflow-y-auto max-w-none text-gray-800"
                   contentEditable={true}
                   onBlur={handleBlur}
                   dangerouslySetInnerHTML={{ __html: content || '' }}
