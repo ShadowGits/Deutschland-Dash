@@ -7,6 +7,13 @@ import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getPro
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// Switching projects unmounts this widget and mounts a fresh one, so without
+// somewhere outside React to keep them, every switch refetched from scratch and
+// sat on a spinner — including going straight back to a project just viewed.
+// Module scope survives that, so a revisit paints from the cache immediately
+// and refreshes behind the scenes.
+const projectCache = new Map<string, { tasks: any[]; milestones: any[] }>();
+
 /** Only the fields the table reads; the widget still passes whole task rows. */
 interface TableTask {
   id: string;
@@ -53,8 +60,8 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   const [newMilestoneName, setNewMilestoneName] = useState('');
   const [creatingMilestone, setCreatingMilestone] = useState(false);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async ({ background = false } = {}) => {
+    if (!background) setLoading(true);
     try {
       // Just enough to draw the group headers, their counts and the ordering.
       // Titles and metadata arrive per group, when a group is opened.
@@ -65,6 +72,10 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
       setTasks(taskData || []);
       setMilestones(milestoneData || []);
       setLoadedGroups(new Set());
+      projectCache.set(projectId, {
+        tasks: taskData || [],
+        milestones: milestoneData || [],
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -73,8 +84,27 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   };
 
   useEffect(() => {
-    loadData();
+    const cached = projectCache.get(projectId);
+    if (cached) {
+      // Paint what we had straight away, then quietly check for changes. The
+      // detail rows are deliberately not cached: they are the expensive read,
+      // and they load per group as you open it.
+      setTasks(cached.tasks);
+      setMilestones(cached.milestones);
+      setLoadedGroups(new Set());
+      setLoading(false);
+      loadData({ background: true });
+    } else {
+      loadData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Keep the cache in step with optimistic updates, so switching away and back
+  // shows the tick or edit you just made rather than the state before it.
+  useEffect(() => {
+    if (!loading) projectCache.set(projectId, { tasks, milestones });
+  }, [projectId, tasks, milestones, loading]);
 
   useEffect(() => {
     if (editingId && editInputRef.current) {
