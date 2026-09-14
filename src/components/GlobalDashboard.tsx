@@ -45,9 +45,16 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
       return next;
     });
   };
-  const unhideAllStreaks = () => {
-    setHiddenStreaks(new Set());
-    try { localStorage.removeItem(HIDDEN_STREAKS_KEY); } catch {}
+  // Restoring is deliberately one-at-a-time, picked from a dropdown: a single
+  // "show all" control sits right under the list and brings everything back on
+  // one stray tap.
+  const unhideStreak = (key: string) => {
+    setHiddenStreaks(prev => {
+      const next = new Set(prev);
+      next.delete(key);
+      try { localStorage.setItem(HIDDEN_STREAKS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
   };
 
   // Refetching the page costs seven API calls, so do it once the ticking
@@ -358,13 +365,21 @@ export default function GlobalDashboard({ metrics, projects = [], monthlyGoals =
                   All streaks hidden.
                 </div>
               )}
-              {hiddenStreaks.size > 0 && (
-                <button
-                  onClick={unhideAllStreaks}
-                  className="w-full text-center text-xs text-gray-400 hover:text-gray-600 pt-1"
+              {Object.keys(streaks).some(k => hiddenStreaks.has(k)) && (
+                <select
+                  value=""
+                  onChange={(e) => { if (e.target.value) unhideStreak(e.target.value); }}
+                  aria-label="Restore a hidden streak"
+                  className="w-full text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400"
                 >
-                  Show {hiddenStreaks.size} hidden {hiddenStreaks.size === 1 ? 'streak' : 'streaks'}
-                </button>
+                  <option value="">Restore a hidden streak…</option>
+                  {Object.keys(streaks)
+                    .filter(k => hiddenStreaks.has(k))
+                    .sort()
+                    .map(k => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
+                </select>
               )}
             </CardContent>
           </Card>
