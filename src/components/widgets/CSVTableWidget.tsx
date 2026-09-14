@@ -3,16 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, FileSpreadsheet, Loader2, CheckSquare, Upload, X } from 'lucide-react';
-import { downloadProjectFile, getProjectTasks, updateTaskStatus, uploadProjectFile, getProjectFiles } from '@/app/actions';
+import { Table, FileSpreadsheet, Loader2, CheckSquare, Upload, X, Plus, Trash2 } from 'lucide-react';
+import { downloadProjectFile, getProjectTasks, updateTaskStatus, uploadProjectFile, getProjectFiles, updateWidgetAction } from '@/app/actions';
 
 interface CSVTableWidgetProps {
+  widget?: any;
   projectId?: string;
   projectFiles?: any[];
   onDelete?: () => Promise<void>;
 }
 
-export default function CSVTableWidget({ projectId, projectFiles = [], onDelete }: CSVTableWidgetProps) {
+export default function CSVTableWidget({ widget, projectId, projectFiles = [], onDelete }: CSVTableWidgetProps) {
   const [data, setData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string>('');
@@ -22,6 +23,58 @@ export default function CSVTableWidget({ projectId, projectFiles = [], onDelete 
   const [liveFiles, setLiveFiles] = useState<any[]>(projectFiles || []);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const firstUncheckedRef = React.useRef<HTMLTableRowElement>(null);
+
+  // An editable table stored on the widget itself, for when there is no CSV.
+  // Shape: { headers: string[], rows: string[][] }. Saved to the widget config
+  // like the text note, so no file is needed to keep a simple table.
+  const [table, setTable] = useState<{ headers: string[]; rows: string[][] }>(
+    () => widget?.config?.table || { headers: ['Column 1', 'Column 2'], rows: [['', '']] }
+  );
+  const [tableSaving, setTableSaving] = useState(false);
+  const saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persistTable = (next: { headers: string[]; rows: string[][] }) => {
+    if (!widget?.id) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setTableSaving(true);
+    // Debounced so typing does not fire a save on every keystroke.
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await updateWidgetAction(widget.id, { config: { ...(widget.config || {}), table: next } });
+      } catch (e) {
+        console.error('Failed to save table', e);
+      } finally {
+        setTableSaving(false);
+      }
+    }, 700);
+  };
+  const updateTable = (next: { headers: string[]; rows: string[][] }) => {
+    setTable(next);
+    persistTable(next);
+  };
+  const setCell = (r: number, c: number, value: string) => {
+    const rows = table.rows.map((row, ri) =>
+      ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row
+    );
+    updateTable({ ...table, rows });
+  };
+  const setHeader = (c: number, value: string) => {
+    updateTable({ ...table, headers: table.headers.map((h, i) => (i === c ? value : h)) });
+  };
+  const addColumn = () =>
+    updateTable({
+      headers: [...table.headers, `Column ${table.headers.length + 1}`],
+      rows: table.rows.map(row => [...row, '']),
+    });
+  const addRow = () =>
+    updateTable({ ...table, rows: [...table.rows, table.headers.map(() => '')] });
+  const deleteRow = (r: number) =>
+    updateTable({ ...table, rows: table.rows.filter((_, i) => i !== r) });
+  const deleteColumn = (c: number) =>
+    updateTable({
+      headers: table.headers.filter((_, i) => i !== c),
+      rows: table.rows.map(row => row.filter((_, i) => i !== c)),
+    });
 
   const csvFiles = liveFiles.filter(f => (f.name && f.name.toLowerCase().endsWith('.csv')) || f.file_type === 'csv' || f.file_type === 'excel');
 
@@ -194,6 +247,60 @@ export default function CSVTableWidget({ projectId, projectFiles = [], onDelete 
           <div className="flex flex-col items-center justify-center min-h-[300px] text-gray-400 p-8">
             <Loader2 size={32} className="animate-spin mb-4 text-indigo-500" />
             <p className="text-sm font-medium text-gray-500">Loading live data from Drive...</p>
+          </div>
+        ) : csvFiles.length === 0 ? (
+          <div className="overflow-auto max-h-[450px]">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0 z-10">
+                <tr>
+                  {table.headers.map((h, c) => (
+                    <th key={c} className="px-2 py-2 border-b border-gray-200 font-semibold">
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={h}
+                          onChange={(e) => setHeader(c, e.target.value)}
+                          className="w-full bg-transparent outline-none font-semibold uppercase text-xs text-gray-600 px-1 py-0.5 rounded focus:bg-white"
+                        />
+                        {table.headers.length > 1 && (
+                          <button onClick={() => deleteColumn(c)} title="Delete column"
+                            className="text-gray-300 hover:text-red-500 shrink-0"><X size={12} /></button>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                  <th className="px-2 py-2 border-b border-gray-200 w-8 text-center">
+                    <button onClick={addColumn} title="Add column"
+                      className="text-gray-400 hover:text-indigo-600"><Plus size={14} /></button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {table.rows.map((row, r) => (
+                  <tr key={r} className="hover:bg-white group">
+                    {row.map((cell, c) => (
+                      <td key={c} className="px-2 py-1 align-top">
+                        <input
+                          value={cell}
+                          onChange={(e) => setCell(r, c, e.target.value)}
+                          className="w-full bg-transparent outline-none text-gray-700 px-1 py-1 rounded focus:bg-indigo-50/40"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 w-8 text-center">
+                      <button onClick={() => deleteRow(r)} title="Delete row"
+                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={13} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex items-center gap-2 p-3">
+              <button onClick={addRow}
+                className="flex items-center gap-1.5 text-sm text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-md font-medium">
+                <Plus size={15} /> Add row
+              </button>
+              {tableSaving && <span className="text-xs text-gray-400 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> saving</span>}
+            </div>
           </div>
         ) : data.length > 0 ? (
           <div className="overflow-auto max-h-[450px]">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder, Calendar, RotateCw } from 'lucide-react';
+import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder, Calendar, RotateCw, ChevronDown, ChevronRight } from 'lucide-react';
 import MonthlyGoalsTable from '@/components/MonthlyGoalsTable';
 import Sidebar from '@/components/Sidebar';
 import ProjectFilesWidget from '@/components/ProjectFilesWidget';
@@ -54,6 +54,9 @@ export default function DashboardClient({
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(initialProjectId);
   const [selectedViewFile, setSelectedViewFile] = useState<any | null>(null);
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
+  // Documents/Drive files section is collapsed by default — it's bulky and
+  // rarely the first thing you need when opening a project.
+  const [docsCollapsed, setDocsCollapsed] = useState(true);
 
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
@@ -294,27 +297,7 @@ export default function DashboardClient({
                 </Card>
               </div>
 
-              {/* Project Files & Google Drive Documents Section */}
-              <div className="grid grid-cols-1 gap-6">
-                <Card className="shadow-sm border-0 rounded-xl">
-                  <CardHeader className="border-b bg-white rounded-t-xl px-6 py-5">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Folder className="mr-2 text-emerald-600" size={20} />
-                      Project Documents & Google Drive Files
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <ProjectFilesWidget
-                      key={activeProject.id}
-                      projectId={activeProject.id}
-                      files={activeProject.files || []}
-                      onViewFile={setSelectedViewFile}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-
-                            {/* Custom Project Tables */}
+              {/* Custom Project Tables */}
               <ProjectCustomTablesWidget
                 key={activeProject.id + "_custom"}
                 projectId={activeProject.id}
@@ -334,6 +317,7 @@ export default function DashboardClient({
                   return (
                     <CSVTableWidget
                       key={widget.id}
+                      widget={widget}
                       projectId={activeProject.id}
                       projectFiles={projectFiles}
                       onDelete={() => handleDeleteWidget(widget.id)}
@@ -365,6 +349,39 @@ export default function DashboardClient({
                 }
                 return null;
               })}
+
+              {/* Project Files & Google Drive Documents Section — collapsible,
+                  parked at the end so it doesn't crowd the top of the view. */}
+              <div className="grid grid-cols-1 gap-6">
+                <Card className="shadow-sm border-0 rounded-xl">
+                  <CardHeader
+                    className="border-b bg-white rounded-t-xl px-6 py-5 cursor-pointer select-none"
+                    onClick={() => setDocsCollapsed((v) => !v)}
+                  >
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center">
+                        <Folder className="mr-2 text-emerald-600" size={20} />
+                        Project Documents & Google Drive Files
+                      </span>
+                      {docsCollapsed ? (
+                        <ChevronRight className="text-gray-400" size={20} />
+                      ) : (
+                        <ChevronDown className="text-gray-400" size={20} />
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  {!docsCollapsed && (
+                    <CardContent className="p-6">
+                      <ProjectFilesWidget
+                        key={activeProject.id}
+                        projectId={activeProject.id}
+                        files={activeProject.files || []}
+                        onViewFile={setSelectedViewFile}
+                      />
+                    </CardContent>
+                  )}
+                </Card>
+              </div>
 
               {/* Add Widget Button */}
               <div className="flex justify-center mt-8 pb-8">

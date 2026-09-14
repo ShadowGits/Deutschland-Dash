@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { FileText, Loader2, Trash2, Edit3, Save } from 'lucide-react';
+import { FileText, Loader2, Trash2, Edit3, Bold, Italic, Underline, List, ListOrdered, Heading2, RemoveFormatting } from 'lucide-react';
 import { downloadProjectFile, updateWidgetAction } from '@/app/actions';
 
 interface TextWidgetProps {
@@ -73,6 +73,24 @@ export default function TextWidget({ projectId, widget, fileInfo, onDelete }: Te
     }
   };
 
+  // Formats the current selection in the editable box using the browser's
+  // built-in commands. preventDefault on mousedown keeps the cursor in the box
+  // so the button never steals focus and loses the selection.
+  const exec = (command: string, value?: string) => {
+    contentRef.current?.focus();
+    document.execCommand(command, false, value);
+  };
+  const Tool = ({ cmd, value, title, children }: any) => (
+    <button
+      type="button"
+      title={title}
+      onMouseDown={(e) => { e.preventDefault(); exec(cmd, value); }}
+      className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+    >
+      {children}
+    </button>
+  );
+
   const fileName = fileInfo?.name || widget.title || "Sticky Note";
   const isEditable = !widget.file_id;
 
@@ -103,13 +121,26 @@ export default function TextWidget({ projectId, widget, fileInfo, onDelete }: Te
         ) : (
           <div className="h-full overflow-y-auto">
             {isEditable ? (
-              <div 
-                ref={contentRef}
-                className="w-full h-full p-6 outline-none prose prose-sm max-w-none text-gray-800"
-                contentEditable={true}
-                onBlur={handleBlur}
-                dangerouslySetInnerHTML={{ __html: content || '' }}
-              />
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-0.5 px-3 py-1.5 border-b bg-gray-50/70 sticky top-0 z-10">
+                  <Tool cmd="bold" title="Bold"><Bold size={16} /></Tool>
+                  <Tool cmd="italic" title="Italic"><Italic size={16} /></Tool>
+                  <Tool cmd="underline" title="Underline"><Underline size={16} /></Tool>
+                  <span className="w-px h-5 bg-gray-200 mx-1" />
+                  <Tool cmd="insertUnorderedList" title="Bulleted list"><List size={16} /></Tool>
+                  <Tool cmd="insertOrderedList" title="Numbered list"><ListOrdered size={16} /></Tool>
+                  <Tool cmd="formatBlock" value="h3" title="Heading"><Heading2 size={16} /></Tool>
+                  <span className="w-px h-5 bg-gray-200 mx-1" />
+                  <Tool cmd="removeFormat" title="Clear formatting"><RemoveFormatting size={16} /></Tool>
+                </div>
+                <div
+                  ref={contentRef}
+                  className="flex-1 w-full p-6 outline-none overflow-y-auto prose prose-sm max-w-none text-gray-800"
+                  contentEditable={true}
+                  onBlur={handleBlur}
+                  dangerouslySetInnerHTML={{ __html: content || '' }}
+                />
+              </div>
             ) : (
               <pre className="p-6 whitespace-pre-wrap text-sm text-gray-700 font-mono">
                 {content}
