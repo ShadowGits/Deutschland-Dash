@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check, Milestone, ChevronDown, ChevronRight, Link, PlusCircle } from 'lucide-react';
+import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check, Milestone, ChevronDown, ChevronRight, Link, PlusCircle, CheckCircle2 } from 'lucide-react';
 import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getProjectMilestones, createProjectMilestone, linkTaskToMilestone } from '@/app/actions';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -253,7 +253,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   // Group tasks by milestone
   const milestoneMap = new Map(milestones.map(m => [m.id, m]));
 
-  const grouped: { key: string; milestone: any | null; tasks: any[] }[] = [];
+  let grouped: { key: string; milestone: any | null; tasks: any[] }[] = [];
   const byMilestone = new Map<string, any[]>();
   const unlinked: any[] = [];
 
@@ -283,6 +283,13 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     const done = unlinked.filter(t => t.status === 'done');
     grouped.push({ key: '__none__', milestone: null, tasks: [...open, ...done] });
   }
+
+  // A milestone with every task ticked is finished: it drops to the bottom so
+  // the work still in front of you stays at the top. Stable, so the remaining
+  // milestones keep their own order.
+  const isGroupDone = (g: typeof grouped[number]) =>
+    g.tasks.length > 0 && g.tasks.every(t => t.status === 'done');
+  grouped = [...grouped.filter(g => !isGroupDone(g)), ...grouped.filter(isGroupDone)];
 
   // Columns a project brings with it, e.g. the study plan's Subject and
   // Source. Order of first appearance, so the table reads the way the data
@@ -591,6 +598,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                 const doneCount = group.tasks.filter(t => t.status === 'done').length;
                 const totalCount = group.tasks.length;
                 const isNoMilestone = !group.milestone;
+                const groupDone = totalCount > 0 && doneCount === totalCount;
                 const columns = metaColumns(group.tasks, group.milestone?.name);
                 const hasMeta = metaKeysOf(group.tasks).length > 0;
 
@@ -600,16 +608,26 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                     <button
                       onClick={() => toggleGroup(group.key)}
                       className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
-                        isNoMilestone ? 'bg-amber-50/60 hover:bg-amber-50' : 'bg-indigo-50/60 hover:bg-indigo-50'
+                        groupDone
+                          ? 'bg-emerald-50/70 hover:bg-emerald-50'
+                          : isNoMilestone ? 'bg-amber-50/60 hover:bg-amber-50' : 'bg-indigo-50/60 hover:bg-indigo-50'
                       }`}
                     >
                       {isCollapsed ? <ChevronRight size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                      <Milestone size={15} className={isNoMilestone ? 'text-amber-500' : 'text-indigo-500'} />
-                      <span className={`text-sm font-semibold flex-1 truncate ${isNoMilestone ? 'text-amber-700' : 'text-indigo-700'}`}>
+                      {groupDone ? (
+                        <CheckCircle2 size={15} className="text-emerald-600" />
+                      ) : (
+                        <Milestone size={15} className={isNoMilestone ? 'text-amber-500' : 'text-indigo-500'} />
+                      )}
+                      <span className={`text-sm font-semibold flex-1 truncate ${
+                        groupDone
+                          ? 'text-emerald-700'
+                          : isNoMilestone ? 'text-amber-700' : 'text-indigo-700'
+                      }`}>
                         {isNoMilestone ? 'No Milestone' : group.milestone.name}
                       </span>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        doneCount === totalCount
+                        groupDone
                           ? 'bg-emerald-100 text-emerald-700'
                           : isNoMilestone ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
                       }`}>
