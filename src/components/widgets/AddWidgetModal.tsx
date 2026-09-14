@@ -105,21 +105,22 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
 
               {widgetType === 'csv' && (
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-gray-700">Select CSV File (Required)</label>
+                  <label className="text-sm font-semibold text-gray-700">Select CSV File (optional)</label>
                   {projectFiles.length > 0 ? (
-                    <select 
-                      value={fileId} 
+                    <select
+                      value={fileId}
                       onChange={(e) => setFileId(e.target.value)}
                       className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50/50"
                     >
-                      <option value="" disabled>-- Select a file --</option>
+                      <option value="">-- Start with a blank table --</option>
                       {projectFiles.filter(f => (f.name && f.name.toLowerCase().endsWith('.csv')) || f.file_type === 'csv' || f.file_type === 'excel').map(f => (
                         <option key={f.id} value={f.id}>{f.name}</option>
                       ))}
                     </select>
-                  ) : (
-                    <p className="text-sm text-red-500 p-3 bg-red-50 rounded-lg">No CSV files uploaded yet.</p>
-                  )}
+                  ) : null}
+                  <p className="text-sm text-gray-500">
+                    Leave this empty to get a blank table you can type into directly.
+                  </p>
                 </div>
               )}
 
@@ -170,7 +171,7 @@ export default function AddWidgetModal({ projectId, projectFiles, onWidgetAdded 
               </button>
               <button 
                 onClick={handleAdd}
-                disabled={loading || (widgetType === 'csv' && !fileId) || (widgetType === 'text' && !fileId && !textContent.trim())}
+                disabled={loading || (widgetType === 'text' && !fileId && !textContent.trim())}
                 className="px-5 py-2.5 rounded-xl font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 flex items-center space-x-2"
               >
                 {loading && <Loader2 size={16} className="animate-spin" />}

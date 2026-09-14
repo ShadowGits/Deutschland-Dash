@@ -95,7 +95,7 @@ export default function TextWidget({ projectId, widget, fileInfo, onDelete }: Te
   const isEditable = !widget.file_id;
 
   return (
-    <Card className="shadow-sm border-0 rounded-xl overflow-hidden flex flex-col mt-6 h-[400px]">
+    <Card className="shadow-sm border-0 rounded-xl overflow-hidden flex flex-col h-[400px]">
       <CardHeader className="border-b bg-white px-6 py-4 flex flex-row items-center justify-between">
         <div className="flex items-center space-x-2">
           {isEditable ? <Edit3 className="text-indigo-600" size={20} /> : <FileText className="text-emerald-600" size={20} />}

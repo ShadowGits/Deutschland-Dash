@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder, Calendar, RotateCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { Target, CheckCircle2, TrendingUp, AlertCircle, Folder, Calendar, RotateCw, ChevronDown, ChevronRight, ArrowUp, ArrowDown, Columns2, Maximize2 } from 'lucide-react';
 import MonthlyGoalsTable from '@/components/MonthlyGoalsTable';
 import Sidebar from '@/components/Sidebar';
 import ProjectFilesWidget from '@/components/ProjectFilesWidget';
@@ -67,6 +67,51 @@ export default function DashboardClient({
   // screen until the page is re-rendered. Hide it straight away and let the
   // refresh catch up.
   const [removedWidgets, setRemovedWidgets] = useState<Set<string>>(new Set());
+  // Widget layout (half/full width and ordering) is persisted on the widget
+  // itself — width in config, position in order_index. These local overrides
+  // let a change show instantly instead of waiting for the server round-trip.
+  const [layout, setLayout] = useState<Record<string, { width?: 'half' | 'full'; order?: number }>>({});
+
+  // The project's widgets in display order, each carrying its resolved width.
+  const orderedWidgets = (projectId: string) =>
+    (projectWidgets[projectId] || [])
+      .filter((w: any) => !removedWidgets.has(w.id))
+      .map((w: any, i: number) => ({
+        ...w,
+        _order: layout[w.id]?.order ?? w.order_index ?? i,
+        _width: layout[w.id]?.width ?? w.config?.width ?? 'full',
+      }))
+      .sort((a: any, b: any) => a._order - b._order);
+
+  const setWidgetWidth = async (widget: any, width: 'half' | 'full') => {
+    setLayout(prev => ({ ...prev, [widget.id]: { ...prev[widget.id], width } }));
+    try {
+      const { updateWidgetAction } = await import('@/app/actions');
+      await updateWidgetAction(widget.id, { config: { ...(widget.config || {}), width } });
+    } catch (e) {
+      console.error('Failed to save widget width', e);
+    }
+  };
+
+  // Swap a widget with its neighbour, then renumber the whole list so the
+  // positions stay distinct and sequential however they started out.
+  const moveWidget = async (list: any[], index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= list.length) return;
+    const next = [...list];
+    [next[index], next[target]] = [next[target], next[index]];
+    setLayout(prev => {
+      const out = { ...prev };
+      next.forEach((w: any, i: number) => { out[w.id] = { ...out[w.id], order: i }; });
+      return out;
+    });
+    try {
+      const { updateWidgetAction } = await import('@/app/actions');
+      await Promise.all(next.map((w: any, i: number) => updateWidgetAction(w.id, { order_index: i })));
+    } catch (e) {
+      console.error('Failed to reorder widgets', e);
+    }
+  };
 
   const handleDeleteWidget = async (widgetId: string) => {
     setRemovedWidgets(prev => new Set(prev).add(widgetId));
@@ -303,52 +348,90 @@ export default function DashboardClient({
                 projectId={activeProject.id}
               />
 
-              {/* Dynamic Widgets Loop */}
-              {(projectWidgets[activeProject.id] || []).filter((widget: any) => !removedWidgets.has(widget.id)).map((widget: any) => {
-                if (widget.widget_type === 'qna') {
-                  return (
-                    <ProjectQnaWidget
-                      key={widget.id}
-                      projectId={activeProject.id}
-                    />
-                  );
-                }
-                if (widget.widget_type === 'csv') {
-                  return (
-                    <CSVTableWidget
-                      key={widget.id}
-                      widget={widget}
-                      projectId={activeProject.id}
-                      projectFiles={projectFiles}
-                      onDelete={() => handleDeleteWidget(widget.id)}
-                    />
-                  );
-                }
-                
-                if (widget.widget_type === 'tasks') {
-                  return (
-                    <ProjectTasksWidget
-                      key={widget.id}
-                      projectId={activeProject.id}
-                      widget={widget}
-                      onDelete={() => handleDeleteWidget(widget.id)}
-                    />
-                  );
-                }
-                if (widget.widget_type === 'text') {
-                  const fileInfo = projectFiles.find(f => f.id === widget.file_id);
-                  return (
-                    <TextWidget
-                      key={widget.id}
-                      projectId={activeProject.id}
-                      widget={widget}
-                      fileInfo={fileInfo}
-                      onDelete={() => handleDeleteWidget(widget.id)}
-                    />
-                  );
-                }
-                return null;
-              })}
+              {/* Dynamic Widgets Loop — a two-column grid so widgets set to
+                  half width sit side by side. Everything collapses to a single
+                  column on narrow screens. */}
+              {(() => {
+                const widgets = orderedWidgets(activeProject.id);
+                const renderWidget = (widget: any) => {
+                  if (widget.widget_type === 'qna') {
+                    return <ProjectQnaWidget projectId={activeProject.id} />;
+                  }
+                  if (widget.widget_type === 'csv') {
+                    return (
+                      <CSVTableWidget
+                        widget={widget}
+                        projectId={activeProject.id}
+                        projectFiles={projectFiles}
+                        onDelete={() => handleDeleteWidget(widget.id)}
+                      />
+                    );
+                  }
+                  if (widget.widget_type === 'tasks') {
+                    return (
+                      <ProjectTasksWidget
+                        projectId={activeProject.id}
+                        widget={widget}
+                        onDelete={() => handleDeleteWidget(widget.id)}
+                      />
+                    );
+                  }
+                  if (widget.widget_type === 'text') {
+                    return (
+                      <TextWidget
+                        projectId={activeProject.id}
+                        widget={widget}
+                        fileInfo={projectFiles.find(f => f.id === widget.file_id)}
+                        onDelete={() => handleDeleteWidget(widget.id)}
+                      />
+                    );
+                  }
+                  return null;
+                };
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    {widgets.map((widget: any, index: number) => {
+                      const body = renderWidget(widget);
+                      if (!body) return null;
+                      const half = widget._width === 'half';
+                      return (
+                        <div
+                          key={widget.id}
+                          className={`min-w-0 ${half ? 'md:col-span-1' : 'md:col-span-2'}`}
+                        >
+                          <div className="flex items-center justify-end gap-1 mb-1 opacity-60 hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => moveWidget(widgets, index, -1)}
+                              disabled={index === 0}
+                              title="Move up"
+                              className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent"
+                            >
+                              <ArrowUp size={16} />
+                            </button>
+                            <button
+                              onClick={() => moveWidget(widgets, index, 1)}
+                              disabled={index === widgets.length - 1}
+                              title="Move down"
+                              className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent"
+                            >
+                              <ArrowDown size={16} />
+                            </button>
+                            <button
+                              onClick={() => setWidgetWidth(widget, half ? 'full' : 'half')}
+                              title={half ? 'Make full width' : 'Make half width (side by side)'}
+                              className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                            >
+                              {half ? <Maximize2 size={16} /> : <Columns2 size={16} />}
+                            </button>
+                          </div>
+                          {body}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Project Files & Google Drive Documents Section — collapsible,
                   parked at the end so it doesn't crowd the top of the view. */}

@@ -78,7 +78,7 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
 
   if (loading) {
     return (
-      <Card className="shadow-sm border-0 rounded-xl mt-6">
+      <Card className="shadow-sm border-0 rounded-xl">
         <CardContent className="p-8 flex justify-center text-gray-400">
           <Loader2 className="animate-spin" size={24} />
         </CardContent>
@@ -90,7 +90,7 @@ export default function ProjectQnaWidget({ projectId }: { projectId: string }) {
   // We'll show the widget always so the user can add the first QnA.
 
   return (
-    <Card className="shadow-sm border-0 rounded-xl overflow-hidden flex flex-col mt-6">
+    <Card className="shadow-sm border-0 rounded-xl overflow-hidden flex flex-col">
       <CardHeader className="border-b bg-white px-6 py-4 flex flex-row items-center justify-between">
         <div className="flex items-center space-x-2">
           <MessageSquare className="text-indigo-600" size={20} />

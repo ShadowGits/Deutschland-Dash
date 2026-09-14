@@ -90,11 +90,16 @@ export default function CSVTableWidget({ widget, projectId, projectFiles = [], o
     return () => { cancelled = true; };
   }, [projectId]);
 
+  // A widget created without a bound file is a blank editable table, and stays
+  // one until the user picks a file from the dropdown — having CSVs elsewhere
+  // in the project must not hijack it.
   useEffect(() => {
-    if (csvFiles.length > 0 && !selectedFileId) {
-      setSelectedFileId(csvFiles[0].id);
+    if (widget?.file_id && !selectedFileId) {
+      setSelectedFileId(widget.file_id);
     }
-  }, [csvFiles, selectedFileId]);
+  }, [widget?.file_id, selectedFileId]);
+
+  const blankMode = !selectedFileId;
 
   useEffect(() => {
     async function loadData() {
@@ -191,27 +196,25 @@ export default function CSVTableWidget({ widget, projectId, projectFiles = [], o
   if (!projectId) return null;
 
   return (
-    <Card className="shadow-sm border-0 rounded-xl overflow-hidden h-full flex flex-col mt-6">
+    <Card className="shadow-sm border-0 rounded-xl overflow-hidden h-full flex flex-col">
       <CardHeader className="border-b bg-white px-6 py-5 flex flex-row items-center justify-between sticky top-0 z-10">
         <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
           <Table className="mr-2 text-indigo-500" size={20} />
-          Live Milestone Tracker
+          {widget?.title || (blankMode ? 'Table' : 'Live Milestone Tracker')}
         </CardTitle>
         <div className="flex items-center space-x-2">
-          {csvFiles.length > 0 ? (
+          {csvFiles.length > 0 && (
             <select
               className="text-sm border-gray-300 rounded-md bg-gray-50 text-gray-700 px-3 py-1.5 focus:ring-indigo-500 focus:border-indigo-500"
               value={selectedFileId}
               onChange={(e) => setSelectedFileId(e.target.value)}
               disabled={loading || uploading}
             >
-              <option value="" disabled>Select a CSV...</option>
+              <option value="">Blank table</option>
               {csvFiles.map(f => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
-          ) : (
-            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded hidden sm:inline-block">No CSVs found</span>
           )}
           
           <input 
@@ -248,7 +251,7 @@ export default function CSVTableWidget({ widget, projectId, projectFiles = [], o
             <Loader2 size={32} className="animate-spin mb-4 text-indigo-500" />
             <p className="text-sm font-medium text-gray-500">Loading live data from Drive...</p>
           </div>
-        ) : csvFiles.length === 0 ? (
+        ) : blankMode ? (
           <div className="overflow-auto max-h-[450px]">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0 z-10">
