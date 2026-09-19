@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check, Milestone, ChevronDown, ChevronRight, Link, PlusCircle, CheckCircle2 } from 'lucide-react';
-import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getProjectMilestones, createProjectMilestone, linkTaskToMilestone } from '@/app/actions';
+import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getProjectMilestones, createProjectMilestone, linkTaskToMilestone, updateProjectMilestone } from '@/app/actions';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -51,6 +51,37 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   // pays for its detail.
   const [loadedGroups, setLoadedGroups] = useState<Set<string>>(new Set());
   const [loadingGroup, setLoadingGroup] = useState<string | null>(null);
+  // Milestone dates edited here, held locally so the field reflects the typing
+  // rather than waiting for the refetch.
+  const [milestoneDates, setMilestoneDates] = useState<Record<string, { start_date?: string; target_date?: string }>>({});
+  const [savingMilestone, setSavingMilestone] = useState<string | null>(null);
+
+  const saveMilestoneDate = async (
+    milestone: any,
+    field: 'start_date' | 'target_date',
+    value: string
+  ) => {
+    setMilestoneDates((prev) => ({
+      ...prev,
+      [milestone.id]: { ...prev[milestone.id], [field]: value },
+    }));
+    setSavingMilestone(milestone.id);
+    try {
+      // Empty clears the date rather than storing "", which is not a date.
+      await updateProjectMilestone(milestone.id, { [field]: value || null });
+      setMilestones((prev) =>
+        prev.map((m) => (m.id === milestone.id ? { ...m, [field]: value || null } : m))
+      );
+    } catch (e) {
+      console.error('Failed to save milestone date', e);
+      setMilestoneDates((prev) => ({
+        ...prev,
+        [milestone.id]: { ...prev[milestone.id], [field]: milestone[field] ?? '' },
+      }));
+    } finally {
+      setSavingMilestone(null);
+    }
+  };
 
   const DETAIL_FIELDS = 'id,title,status,scheduled_date,estimated_minutes,milestone_id,metadata';
 
@@ -670,6 +701,41 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                         </span>
                       )}
                     </button>
+
+                    {/* Milestone dates. Health rates progress against how much
+                        of the schedule has gone, so an explicit start matters:
+                        without one it falls back to the earliest task, which
+                        moves every time a task is rescheduled. */}
+                    {!isCollapsed && !isNoMilestone && (
+                      <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 bg-white text-xs text-gray-500">
+                        <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+                        <label className="flex items-center gap-1.5">
+                          <span>Start</span>
+                          <input
+                            type="date"
+                            value={milestoneDates[group.milestone.id]?.start_date ?? group.milestone.start_date ?? ''}
+                            onChange={(e) => saveMilestoneDate(group.milestone, 'start_date', e.target.value)}
+                            className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          />
+                        </label>
+                        <span className="text-gray-300">→</span>
+                        <label className="flex items-center gap-1.5">
+                          <span>Target</span>
+                          <input
+                            type="date"
+                            value={milestoneDates[group.milestone.id]?.target_date ?? group.milestone.target_date ?? ''}
+                            onChange={(e) => saveMilestoneDate(group.milestone, 'target_date', e.target.value)}
+                            className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          />
+                        </label>
+                        {savingMilestone === group.milestone.id && (
+                          <Loader2 size={12} className="animate-spin text-gray-400" />
+                        )}
+                        {!group.milestone.start_date && !milestoneDates[group.milestone.id]?.start_date && (
+                          <span className="text-gray-400 italic">using earliest task</span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Tasks */}
                     {!isCollapsed && (

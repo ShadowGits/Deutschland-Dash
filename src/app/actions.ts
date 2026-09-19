@@ -182,6 +182,22 @@ export async function createProjectMilestone(projectId: string, name: string, ta
   return res;
 }
 
+// Milestone health rates progress against how much of the schedule has gone,
+// so it needs a start as well as a target. Left unset, the start falls back to
+// the earliest task, which shifts whenever tasks are rescheduled.
+export async function updateProjectMilestone(
+  milestoneId: string,
+  updates: { name?: string; status?: string; start_date?: string | null; target_date?: string | null; notes?: string }
+) {
+  const res = await makeRequest<{ milestone: any }>(`/v2/milestones/${milestoneId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+    headers: { 'Content-Type': 'application/json' }
+  });
+  revalidatePath('/');
+  return res;
+}
+
 export async function linkTaskToMilestone(taskId: string, milestoneId: string | null) {
   const res = await makeRequest(`/v2/day/tasks/${taskId}`, {
     method: 'PATCH',
