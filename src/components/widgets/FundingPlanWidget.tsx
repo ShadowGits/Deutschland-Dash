@@ -432,17 +432,20 @@ function LedgerRow({
               >
                 {CERTAINTY_LABEL[item.certainty]}
               </span>
+            ) : over ? (
+              <span className="text-xs font-semibold text-rose-600 whitespace-nowrap tabular-nums">
+                {formatMoney(item.overBy, baseCurrency)} over
+              </span>
+            ) : item.settled > 0 && item.outstanding === 0 ? (
+              // The settled state is a badge, not a line of grey text, so it
+              // cannot be mistaken for the button that records a payment.
+              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 whitespace-nowrap">
+                <Check size={11} />
+                {item.kind === 'cost' ? 'Paid' : 'Received'}
+              </span>
             ) : item.settled > 0 ? (
-              <span
-                className={`text-xs whitespace-nowrap tabular-nums ${
-                  over ? 'text-rose-600 font-semibold' : 'text-gray-400'
-                }`}
-              >
-                {over
-                  ? `${formatMoney(item.overBy, baseCurrency)} over`
-                  : item.outstanding === 0
-                    ? item.kind === 'cost' ? 'paid' : 'received'
-                    : `${formatMoney(item.outstanding, baseCurrency)} left`}
+              <span className="text-xs text-gray-400 whitespace-nowrap tabular-nums">
+                {formatMoney(item.outstanding, baseCurrency)} left
               </span>
             ) : null}
           </div>
@@ -468,13 +471,16 @@ function LedgerRow({
     </button>
 
     {onSettle && (
+      // An action, and it has to look like one. Labelled "Paid" with a tick it
+      // read as a status badge, so a plan where nothing had been paid looked
+      // fully settled on every row.
       <button
         onClick={onSettle}
-        title="Record a payment against this line"
-        className="flex items-center gap-1 px-3 my-2 mr-2 text-xs font-medium text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-200 transition-colors"
+        title="Record money actually paid against this line"
+        className="flex items-center gap-1 self-center flex-shrink-0 px-2.5 py-1.5 my-2 mr-3 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap"
       >
-        <Check size={14} />
-        Paid
+        <Plus size={13} />
+        {item.outstanding > 0 ? 'Mark paid' : 'Add payment'}
       </button>
     )}
     </div>
@@ -924,7 +930,7 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
             ) : totals.costPaid > 0 ? (
               <>{formatMoney(totals.costPaid, currency)} spent so far · {paidPct}%</>
             ) : (
-              'Nothing paid against these yet'
+              'No payments recorded yet'
             )
           }
         />
