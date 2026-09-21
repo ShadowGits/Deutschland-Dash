@@ -47,6 +47,11 @@ export interface PlanItem extends PlanItemRow {
   /** Spent (a cost) or received (a funding line), in base currency. */
   settled: number;
   outstanding: number;
+  /** How far past the estimate this went. Deliberately not folded into
+   *  outstanding or the gap — the extra has already left the account, so it
+   *  belongs against the cash-in-hand line rather than being counted twice.
+   *  Reported on its own so overspending is loud instead of silent. */
+  overBy: number;
   progressPct: number;
 }
 
@@ -63,6 +68,7 @@ export interface PlanTotals {
   costEstimate: number;
   costPaid: number;
   costOutstanding: number;
+  costOverspend: number;
   fundExpected: number;
   fundReceived: number;
   fundOutstanding: number;
@@ -313,6 +319,7 @@ function toPlanItem(
     estimate,
     settled,
     outstanding: round(Math.max(estimate - settled, 0)),
+    overBy: round(Math.max(settled - estimate, 0)),
     progressPct: estimate ? Math.min(Math.round((settled / estimate) * 1000) / 10, 100) : 0,
   };
 }
@@ -414,7 +421,7 @@ export function computePlan(data: FundingData, options: ComputeOptions = {}): Pl
     });
   }
 
-  const sum = (rows: PlanItem[], field: 'estimate' | 'settled' | 'outstanding') =>
+  const sum = (rows: PlanItem[], field: 'estimate' | 'settled' | 'outstanding' | 'overBy') =>
     round(rows.reduce((total, row) => total + row[field], 0));
 
   const costOutstanding = sum(costs, 'outstanding');
@@ -447,6 +454,7 @@ export function computePlan(data: FundingData, options: ComputeOptions = {}): Pl
       costEstimate: sum(costs, 'estimate'),
       costPaid: sum(costs, 'settled'),
       costOutstanding,
+      costOverspend: sum(costs, 'overBy'),
       fundExpected: sum(counted, 'estimate'),
       fundReceived: sum(counted, 'settled'),
       fundOutstanding,

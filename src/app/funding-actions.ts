@@ -177,6 +177,50 @@ export async function updatePlan(
   return { ok: true };
 }
 
+export interface SettleInput {
+  amount: number;
+  currency: string;
+  date: string;
+  /** Written as the passbook description, so the row is recognisable there. */
+  label: string;
+  category: string | null;
+}
+
+/** Record that a cost was actually paid: one step, not four.
+ *
+ *  Logging it in the passbook and attributing it to the plan line are the same
+ *  action here. Split across two screens — as they were — nobody does the
+ *  second half, and the plan never learns what anything really cost. */
+export async function settlePlanItem(planItemId: string, input: SettleInput) {
+  if (!(Number(input.amount) > 0)) {
+    return { ok: false, error: 'Amount must be greater than zero' };
+  }
+  if (!input.date) {
+    return { ok: false, error: 'Pick the date it was paid' };
+  }
+
+  try {
+    const workspace = await activeWorkspaceId();
+    const { error } = await supabase().from('finance_logs').insert({
+      date: input.date,
+      description: String(input.label || 'Plan payment').trim(),
+      amount: Number(input.amount),
+      currency: (input.currency || 'INR').toUpperCase(),
+      type: 'expense',
+      category: input.category || null,
+      plan_item_id: planItemId,
+      user_id: USER_ID,
+      workspace_id: workspace,
+    });
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not record it' };
+  }
+
+  revalidatePath('/');
+  return { ok: true };
+}
+
 /** Attribute a logged expense to a plan line, or pass null to detach it. */
 export async function linkTransaction(transactionId: string, planItemId: string | null) {
   try {

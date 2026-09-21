@@ -45,6 +45,10 @@ export const EXPENSE_CATEGORIES = [
   'Food', 'Groceries', 'Transport', 'Rent', 'Utilities', 'Health',
   'Education', 'Shopping', 'Entertainment', 'Subscriptions', 'Travel',
   'Savings', 'Fees', 'Family', 'Other',
+  // The funding plan's cost categories, so ticking a plan line as paid writes
+  // a row this screen can still show and edit. Mapping them onto Education on
+  // the way in would bury the move's spending in ordinary study costs.
+  'Tests', 'Tuition', 'Applications', 'Courses', 'Documents', 'Visa', 'Living',
 ];
 
 export const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Refund', 'Gift', 'Interest', 'Other'];
@@ -54,6 +58,8 @@ const CATEGORY_EMOJI: Record<string, string> = {
   Health: '💊', Education: '📚', Shopping: '🛍️', Entertainment: '🎬',
   Subscriptions: '🔁', Travel: '✈️', Savings: '🏦', Fees: '📋', Family: '👨‍👩‍👧',
   Salary: '💼', Freelance: '💻', Refund: '↩️', Gift: '🎁', Interest: '📈',
+  Tests: '📝', Tuition: '🎓', Applications: '📮', Courses: '📚',
+  Documents: '📄', Visa: '🛂', Living: '🏠',
   Other: '📌',
 };
 
