@@ -12,6 +12,8 @@ export interface Transaction {
   payment_method: string | null;
   goal_id: string | null;
   recurring_id: string | null;
+  /** The funding-plan line this spend was budgeted under, if any. */
+  plan_item_id: string | null;
   notes: string | null;
 }
 

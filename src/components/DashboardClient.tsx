@@ -23,7 +23,9 @@ import WeeklyView from '@/components/WeeklyView';
 import { useSearchParams, useRouter } from 'next/navigation';
 import NotificationBell from '@/components/NotificationBell';
 import MoneyView from '@/components/MoneyView';
+import FundingPlanWidget from '@/components/widgets/FundingPlanWidget';
 import type { MoneyMonth } from '@/lib/finance';
+import type { FundingData } from '@/lib/funding';
 
 interface DashboardClientProps {
   metrics: any;
@@ -35,6 +37,7 @@ interface DashboardClientProps {
   weekData?: any;
   projectWidgets?: Record<string, any[]>;
   money?: MoneyMonth | null;
+  funding?: FundingData | null;
 }
 
 export default function DashboardClient({
@@ -46,7 +49,8 @@ export default function DashboardClient({
   financeGoals = [],
   weekData = null,
   projectWidgets = {},
-  money = null
+  money = null,
+  funding = null
 }: DashboardClientProps) {
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('projectId') || 'dashboard';
@@ -247,7 +251,14 @@ export default function DashboardClient({
             )
           ) : activeProject ? (
             <div className="space-y-6">
-              
+
+              {/* The funding plan is what the Finance project is for, so it
+                  opens the view rather than sitting under the generic task
+                  counters. */}
+              {projectName === 'Finance' && funding && (
+                <FundingPlanWidget initial={funding} />
+              )}
+
               {/* Top KPIs */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <Card className="shadow-sm border-0 rounded-xl">
