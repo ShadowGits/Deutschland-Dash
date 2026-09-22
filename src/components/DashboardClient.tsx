@@ -361,11 +361,17 @@ export default function DashboardClient({
               </div>
               )}
 
-              {/* Custom Project Tables */}
-              <ProjectCustomTablesWidget
-                key={activeProject.id + "_custom"}
-                projectId={activeProject.id}
-              />
+              {/* Custom Project Tables. Skipped on Finance: it fires five
+                  table reads on mount — tests, colleges, applications,
+                  professors, papers — and renders nothing from any of them
+                  there, so it was the slowest thing on the page and the only
+                  one with nothing to show for it. */}
+              {!isFinance && (
+                <ProjectCustomTablesWidget
+                  key={activeProject.id + "_custom"}
+                  projectId={activeProject.id}
+                />
+              )}
 
               {/* Dynamic Widgets Loop — a two-column grid so widgets set to
                   half width sit side by side. Everything collapses to a single
