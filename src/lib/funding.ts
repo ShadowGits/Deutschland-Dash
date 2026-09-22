@@ -72,6 +72,10 @@ export interface PlanTotals {
   fundExpected: number;
   fundReceived: number;
   fundOutstanding: number;
+  /** What is left after the costs already settled — money paid out is money
+   *  you no longer have. The gap is unaffected either way: settling a
+   *  budgeted cost moves the same rupees between columns. */
+  fundAvailable: number;
   /** Is there enough money at all? Negative means a real shortfall. */
   gap: number;
   /** The worst the running balance ever gets — the bridge, even when funded. */
@@ -386,9 +390,11 @@ export function computePlan(data: FundingData, options: ComputeOptions = {}): Pl
     ? funds
     : funds.filter((f) => f.certainty === 'confirmed');
 
-  // Funding with no date is money already in hand, so it opens the balance.
+  const costPaid = round(costs.reduce((total, row) => total + row.settled, 0));
+  // Funding with no date is money already in hand, less anything already paid
+  // out: that money has gone and cannot fund what is still coming.
   const openingBalance = round(
-    counted.filter((f) => !f.due_date).reduce((sum, f) => sum + f.outstanding, 0)
+    counted.filter((f) => !f.due_date).reduce((sum, f) => sum + f.outstanding, 0) - costPaid
   );
 
   const buckets = new Map<string, { inflow: number; outflow: number }>();
@@ -426,7 +432,8 @@ export function computePlan(data: FundingData, options: ComputeOptions = {}): Pl
 
   const costOutstanding = sum(costs, 'outstanding');
   const fundOutstanding = sum(counted, 'outstanding');
-  const gap = round(fundOutstanding - costOutstanding);
+  const fundAvailable = round(fundOutstanding - costPaid);
+  const gap = round(fundAvailable - costOutstanding);
   const loanNeeded = round(Math.max(-low, 0));
 
   let status: PlanTotals['status'];
@@ -452,12 +459,13 @@ export function computePlan(data: FundingData, options: ComputeOptions = {}): Pl
       baseCurrency: base,
       eurRate,
       costEstimate: sum(costs, 'estimate'),
-      costPaid: sum(costs, 'settled'),
+      costPaid,
       costOutstanding,
       costOverspend: sum(costs, 'overBy'),
       fundExpected: sum(counted, 'estimate'),
       fundReceived: sum(counted, 'settled'),
       fundOutstanding,
+      fundAvailable,
       gap,
       loanNeeded,
       loanByMonth,

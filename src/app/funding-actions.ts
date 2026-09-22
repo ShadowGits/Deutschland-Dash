@@ -120,6 +120,34 @@ export async function updatePlanItem(id: string, updates: Partial<PlanItemInput>
       workspace
     ).eq('id', id);
     if (error) throw new Error(error.message);
+
+    // A paid line's amount IS what it cost, so correcting the line has to
+    // correct the spending it recorded. Leaving them apart would show the
+    // edit as an overspend or a balance still owing on something settled.
+    const { data: logs } = await tenantFilter(
+      supabase().from('finance_logs').select('id'),
+      workspace
+    ).eq('plan_item_id', id);
+
+    if (logs?.length === 1) {
+      const { data: item } = await tenantFilter(
+        supabase().from('finance_plan_items').select('label,category,amount,currency,instalments'),
+        workspace
+      ).eq('id', id).single();
+
+      if (item) {
+        await tenantFilter(
+          supabase().from('finance_logs').update({
+            description: String(item.label || 'Plan payment').trim(),
+            amount: Number(item.amount || 0) * Math.max(1, Number(item.instalments || 1)),
+            currency: String(item.currency || 'INR').toUpperCase(),
+            category: item.category || null,
+            updated_at: new Date().toISOString(),
+          }),
+          workspace
+        ).eq('id', logs[0].id);
+      }
+    }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not save' };
   }
@@ -177,44 +205,63 @@ export async function updatePlan(
   return { ok: true };
 }
 
-export interface SettleInput {
-  amount: number;
-  currency: string;
-  date: string;
-  /** Written as the passbook description, so the row is recognisable there. */
-  label: string;
-  category: string | null;
-}
-
-/** Record that a cost was actually paid: one step, not four.
+/** Mark a cost paid. One click, no form.
  *
- *  Logging it in the passbook and attributing it to the plan line are the same
- *  action here. Split across two screens — as they were — nobody does the
- *  second half, and the plan never learns what anything really cost. */
-export async function settlePlanItem(planItemId: string, input: SettleInput) {
-  if (!(Number(input.amount) > 0)) {
-    return { ok: false, error: 'Amount must be greater than zero' };
-  }
-  if (!input.date) {
-    return { ok: false, error: 'Pick the date it was paid' };
-  }
-
+ *  The line's own amount is what gets written, because the line's amount is
+ *  the real cost — a separate "what did it actually come to" step would be
+ *  asking the same number twice. Correcting it means editing the line, and
+ *  the transaction follows. */
+export async function markPaid(planItemId: string) {
   try {
     const workspace = await activeWorkspaceId();
+    const { data: item, error: readError } = await tenantFilter(
+      supabase().from('finance_plan_items').select('label,category,amount,currency,instalments'),
+      workspace
+    ).eq('id', planItemId).single();
+
+    if (readError) throw new Error(readError.message);
+    if (!item) throw new Error('That line no longer exists');
+
+    // Marking paid twice would stack a second charge onto the same line.
+    const { data: existing, error: existingError } = await tenantFilter(
+      supabase().from('finance_logs').select('id'),
+      workspace
+    ).eq('plan_item_id', planItemId).limit(1);
+    if (existingError) throw new Error(existingError.message);
+    if (existing?.length) return { ok: true };
+
     const { error } = await supabase().from('finance_logs').insert({
-      date: input.date,
-      description: String(input.label || 'Plan payment').trim(),
-      amount: Number(input.amount),
-      currency: (input.currency || 'INR').toUpperCase(),
+      date: new Date().toISOString().slice(0, 10),
+      description: String(item.label || 'Plan payment').trim(),
+      amount: Number(item.amount || 0) * Math.max(1, Number(item.instalments || 1)),
+      currency: String(item.currency || 'INR').toUpperCase(),
       type: 'expense',
-      category: input.category || null,
+      category: item.category || null,
       plan_item_id: planItemId,
       user_id: USER_ID,
       workspace_id: workspace,
     });
     if (error) throw new Error(error.message);
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not record it' };
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not mark it paid' };
+  }
+
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Undo it. Removes the spending this line recorded, so a mis-click is not
+ *  permanent and does not have to be hunted down on another screen. */
+export async function markUnpaid(planItemId: string) {
+  try {
+    const workspace = await activeWorkspaceId();
+    const { error } = await tenantFilter(
+      supabase().from('finance_logs').delete(),
+      workspace
+    ).eq('plan_item_id', planItemId);
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not undo it' };
   }
 
   revalidatePath('/');

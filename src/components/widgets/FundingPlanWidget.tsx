@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import {
   Wallet, PiggyBank, TrendingDown, Plus, Trash2, X, AlertCircle,
-  CheckCircle2, Landmark, Link2, Check,
+  CheckCircle2, Landmark, Link2, Check, Undo2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMoney, categoryEmoji, type Transaction } from '@/lib/finance';
@@ -14,7 +14,7 @@ import {
 } from '@/lib/funding';
 import {
   createPlanItem, updatePlanItem, deletePlanItem, updatePlan, linkTransaction,
-  settlePlanItem, reloadFunding, type PlanItemInput,
+  markPaid, markUnpaid, reloadFunding, type PlanItemInput,
 } from '@/app/funding-actions';
 
 /* The funding plan.
@@ -367,27 +367,16 @@ function ItemForm({
 
 /* ---------------------------------------------------------------- ledger */
 
-/** What to offer as the amount when ticking a line as paid.
- *
- *  In the line's own currency, never the converted one. A line paid in
- *  instalments offers one instalment, because that is what you actually just
- *  paid; a one-off offers whatever is still outstanding. */
-function suggestedPayment(item: PlanItem): number {
-  if (item.instalments > 1) return item.amount;
-  const nativeTotal = item.amount * item.instalments;
-  const ratio = item.estimate > 0 ? item.outstanding / item.estimate : 1;
-  return Math.round(nativeTotal * ratio * 100) / 100;
-}
-
 function LedgerRow({
-  item, baseCurrency, onClick, onSettle,
+  item, baseCurrency, onClick, onTogglePaid,
 }: {
   item: PlanItem;
   baseCurrency: string;
   onClick: () => void;
-  /** Costs only: tick it as paid without leaving the screen. */
-  onSettle?: () => void;
+  /** Costs only: paid or not, in one click, and reversible. */
+  onTogglePaid?: () => void;
 }) {
+  const paid = item.settled > 0;
   const native = item.currency.toUpperCase() !== baseCurrency.toUpperCase();
   const meta = [
     item.category,
@@ -470,102 +459,30 @@ function LedgerRow({
       </div>
     </button>
 
-    {onSettle && (
-      // An action, and it has to look like one. Labelled "Paid" with a tick it
-      // read as a status badge, so a plan where nothing had been paid looked
-      // fully settled on every row.
+    {onTogglePaid && (
+      // Paid is a state you set and unset, not a form you fill. It has to
+      // look like a control either way, because labelled "Paid" with a tick
+      // it read as a badge and every unpaid row looked settled.
       <button
-        onClick={onSettle}
-        title="Record money actually paid against this line"
-        className="flex items-center gap-1 self-center flex-shrink-0 px-2.5 py-1.5 my-2 mr-3 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap"
+        onClick={onTogglePaid}
+        title={paid ? 'Undo this — removes the spending it recorded' : 'Record this as paid'}
+        className={`flex items-center gap-1 self-center flex-shrink-0 px-2.5 py-1.5 my-2 mr-3 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
+          paid
+            ? 'text-gray-500 bg-white border-gray-300 hover:border-rose-400 hover:text-rose-700 hover:bg-rose-50'
+            : 'text-gray-600 bg-white border-gray-300 hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50'
+        }`}
       >
-        <Plus size={13} />
-        {item.outstanding > 0 ? 'Mark paid' : 'Add payment'}
+        {paid ? <Undo2 size={13} /> : <Plus size={13} />}
+        {paid ? 'Undo' : 'Mark paid'}
       </button>
     )}
     </div>
   );
 }
 
-/** Recording a payment. The passbook row and the attribution to the plan line
- *  are written together, because split across two screens the second half
- *  never happens and the plan never learns what anything really cost. */
-function SettleForm({
-  item, saving, onSave, onCancel,
-}: {
-  item: PlanItem;
-  saving: boolean;
-  onSave: (values: { amount: number; currency: string; date: string }) => void;
-  onCancel: () => void;
-}) {
-  const [amount, setAmount] = useState(suggestedPayment(item));
-  const [currency, setCurrency] = useState(item.currency);
-  const [date, setDate] = useState(todayIso());
-  const field =
-    'px-2.5 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-0';
-
-  return (
-    <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
-      <p className="text-xs font-semibold text-emerald-800">
-        Record a payment — {item.label}
-      </p>
-
-      <div className="grid grid-cols-[auto_1fr_auto] gap-2">
-        <select
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-          className={field}
-        >
-          <option value="INR">₹</option>
-          <option value="EUR">€</option>
-        </select>
-        <input
-          type="number"
-          min="0"
-          step="1"
-          value={amount || ''}
-          onChange={(e) => setAmount(Number(e.target.value))}
-          placeholder="How much did it actually cost?"
-          className={field}
-          autoFocus
-        />
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className={field}
-        />
-      </div>
-
-      {item.instalments > 1 && (
-        <p className="text-xs text-gray-500">
-          One instalment of {item.instalments}. Record each as you pay it.
-        </p>
-      )}
-
-      <div className="flex items-center justify-end gap-2 pt-0.5">
-        <button
-          onClick={onCancel}
-          disabled={saving}
-          className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => onSave({ amount, currency, date })}
-          disabled={saving || !(amount > 0) || !date}
-          className="px-3.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-40"
-        >
-          {saving ? 'Saving…' : 'Record it'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function Ledger({
-  kind, items, baseCurrency, total, editing, adding, seed, settling, saving,
-  onEdit, onAdd, onSave, onDelete, onCancel, onSettle, onRecord,
+  kind, items, baseCurrency, total, editing, adding, seed, saving,
+  onEdit, onAdd, onSave, onDelete, onCancel, onTogglePaid,
 }: {
   kind: PlanKind;
   items: PlanItem[];
@@ -575,15 +492,13 @@ function Ledger({
   adding: boolean;
   /** What a suggestion chip prefilled, so "+ Tests" opens a named line. */
   seed: Partial<PlanItemInput>;
-  settling: string | null;
   saving: boolean;
   onEdit: (id: string | null) => void;
   onAdd: (seed?: Partial<PlanItemInput>) => void;
   onSave: (id: string | null, values: PlanItemInput) => void;
   onDelete: (id: string) => void;
   onCancel: () => void;
-  onSettle: (id: string) => void;
-  onRecord: (item: PlanItem, values: { amount: number; currency: string; date: string }) => void;
+  onTogglePaid: (item: PlanItem) => void;
 }) {
   const cost = kind === 'cost';
   const suggestions = cost
@@ -647,22 +562,13 @@ function Ledger({
                 onDelete={() => onDelete(item.id)}
               />
             </div>
-          ) : settling === item.id ? (
-            <div key={item.id} className="p-3">
-              <SettleForm
-                item={item}
-                saving={saving}
-                onSave={(values) => onRecord(item, values)}
-                onCancel={onCancel}
-              />
-            </div>
           ) : (
             <LedgerRow
               key={item.id}
               item={item}
               baseCurrency={baseCurrency}
               onClick={() => onEdit(item.id)}
-              onSettle={cost ? () => onSettle(item.id) : undefined}
+              onTogglePaid={cost ? () => onTogglePaid(item) : undefined}
             />
           )
         )}
@@ -761,7 +667,6 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
   const [editing, setEditing] = useState<string | null>(null);
   const [addingTo, setAddingTo] = useState<PlanKind | null>(null);
   const [seed, setSeed] = useState<Partial<PlanItemInput>>({});
-  const [settling, setSettling] = useState<string | null>(null);
   const [rate, setRate] = useState(String(initial.plan?.eur_rate ?? 100));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -791,19 +696,15 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
   const { totals } = view;
   const currency = totals.baseCurrency;
 
-  const done = async () => {
-    setData(await reloadFunding());
-    setEditing(null);
-    setAddingTo(null);
-    setSettling(null);
-    setSeed({});
-  };
-
   const closeForms = () => {
     setEditing(null);
     setAddingTo(null);
-    setSettling(null);
     setSeed({});
+  };
+
+  const done = async () => {
+    setData(await reloadFunding());
+    closeForms();
   };
 
   const run = (action: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -825,19 +726,12 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
 
   const startAdd = (kind: PlanKind, values: Partial<PlanItemInput> = {}) => {
     setEditing(null);
-    setSettling(null);
     setSeed(values);
     setAddingTo(kind);
   };
 
-  const record = (
-    item: PlanItem,
-    values: { amount: number; currency: string; date: string }
-  ) => run(() => settlePlanItem(item.id, {
-    ...values,
-    label: item.label,
-    category: item.category,
-  }));
+  const togglePaid = (item: PlanItem) =>
+    run(() => (item.settled > 0 ? markUnpaid(item.id) : markPaid(item.id)));
 
   const commitRate = () => {
     const value = Number(rate);
@@ -941,13 +835,12 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
         />
         <Stat
           label="Money available"
-          value={formatMoney(totals.fundOutstanding, currency)}
+          value={formatMoney(totals.fundAvailable, currency)}
           tone="fund"
           sub={
-            <>
-              {formatMoney(view.openingBalance, currency)} in hand
-              {totals.fundOutstanding > view.openingBalance && <> · rest still to arrive</>}
-            </>
+            totals.costPaid > 0
+              ? <>{formatMoney(totals.fundOutstanding, currency)} listed, less {formatMoney(totals.costPaid, currency)} already paid out</>
+              : <>{formatMoney(view.openingBalance, currency)} in hand · rest still to arrive</>
           }
         />
         <PositionCard view={view} />
@@ -973,15 +866,13 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
           editing={editing}
           adding={addingTo === 'cost'}
           seed={seed}
-          settling={settling}
           saving={pending}
-          onEdit={(id) => { setAddingTo(null); setSettling(null); setEditing(id); }}
+          onEdit={(id) => { setAddingTo(null); setEditing(id); }}
           onAdd={(values) => startAdd('cost', values)}
           onSave={(id, values) => save('cost', id, values)}
           onDelete={(id) => run(() => deletePlanItem(id))}
           onCancel={closeForms}
-          onSettle={(id) => { setEditing(null); setAddingTo(null); setSettling(id); }}
-          onRecord={record}
+          onTogglePaid={togglePaid}
         />
         <Ledger
           kind="fund"
@@ -991,15 +882,13 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
           editing={editing}
           adding={addingTo === 'fund'}
           seed={seed}
-          settling={settling}
           saving={pending}
-          onEdit={(id) => { setAddingTo(null); setSettling(null); setEditing(id); }}
+          onEdit={(id) => { setAddingTo(null); setEditing(id); }}
           onAdd={(values) => startAdd('fund', values)}
           onSave={(id, values) => save('fund', id, values)}
           onDelete={(id) => run(() => deletePlanItem(id))}
           onCancel={closeForms}
-          onSettle={() => {}}
-          onRecord={record}
+          onTogglePaid={togglePaid}
         />
       </div>
 
