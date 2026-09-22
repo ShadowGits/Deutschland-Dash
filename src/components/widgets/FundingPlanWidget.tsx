@@ -3,17 +3,17 @@
 import { useMemo, useState, useTransition } from 'react';
 import {
   Wallet, PiggyBank, TrendingDown, Plus, Trash2, X, AlertCircle,
-  CheckCircle2, Landmark, Link2, Check, Undo2,
+  CheckCircle2, Landmark, Check, Undo2,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatMoney, categoryEmoji, type Transaction } from '@/lib/finance';
+import { Card, CardContent } from '@/components/ui/card';
+import { formatMoney } from '@/lib/finance';
 import {
   computePlan, planCategoryEmoji, compactMoney, monthLabel, dateLabel, todayIso,
   PLAN_COST_CATEGORIES, PLAN_FUND_CATEGORIES,
   type FundingData, type PlanItem, type PlanKind, type Certainty, type PlanView,
 } from '@/lib/funding';
 import {
-  createPlanItem, updatePlanItem, deletePlanItem, updatePlan, linkTransaction,
+  createPlanItem, updatePlanItem, deletePlanItem, updatePlan,
   markPaid, markUnpaid, reloadFunding, type PlanItemInput,
 } from '@/app/funding-actions';
 
@@ -602,63 +602,6 @@ function Ledger({
   );
 }
 
-/* ------------------------------------------------------ attributing spend */
-
-/** Spending only shows up against an estimate once it is attributed to one.
- *  Left to a separate screen nobody ever does it, so the unattributed rows sit
- *  here, next to the lines they probably belong to. */
-function LinkStrip({
-  rows, costs, saving, onLink,
-}: {
-  rows: Transaction[];
-  costs: PlanItem[];
-  saving: boolean;
-  onLink: (transactionId: string, planItemId: string) => void;
-}) {
-  if (rows.length === 0 || costs.length === 0) return null;
-
-  return (
-    <Card className="shadow-sm border-0 rounded-xl">
-      <CardHeader className="border-b bg-white rounded-t-xl px-6 py-4">
-        <CardTitle className="text-sm font-semibold text-gray-700 flex items-center">
-          <Link2 className="mr-2 text-gray-400" size={16} />
-          Recent spending not yet on the plan
-          <span className="ml-2 text-xs font-normal text-gray-400">
-            pick the line it belongs to
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0 max-h-72 overflow-y-auto divide-y divide-gray-100">
-        {rows.map((row) => (
-          <div key={row.id} className="flex items-center gap-3 px-6 py-2.5">
-            <span className="h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center text-xs flex-shrink-0">
-              {categoryEmoji(row.category)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-gray-800 truncate">{row.description}</p>
-              <p className="text-xs text-gray-400">{dateLabel(row.date)}</p>
-            </div>
-            <span className="text-sm font-medium text-gray-700 tabular-nums whitespace-nowrap">
-              {formatMoney(Number(row.amount), row.currency)}
-            </span>
-            <select
-              defaultValue=""
-              disabled={saving}
-              onChange={(e) => e.target.value && onLink(row.id, e.target.value)}
-              className="px-2 py-1.5 border rounded-lg text-xs bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-[190px] disabled:opacity-50"
-            >
-              <option value="">Not on the plan</option>
-              {costs.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
 /* ----------------------------------------------------------------- widget */
 
 export default function FundingPlanWidget({ initial }: { initial: FundingData }) {
@@ -891,14 +834,6 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
           onTogglePaid={togglePaid}
         />
       </div>
-
-      <LinkStrip
-        rows={data.unlinked}
-        costs={view.costs}
-        saving={pending}
-        onLink={(transactionId, planItemId) =>
-          run(() => linkTransaction(transactionId, planItemId))}
-      />
     </div>
   );
 }

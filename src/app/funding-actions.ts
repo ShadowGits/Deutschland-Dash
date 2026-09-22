@@ -267,23 +267,3 @@ export async function markUnpaid(planItemId: string) {
   revalidatePath('/');
   return { ok: true };
 }
-
-/** Attribute a logged expense to a plan line, or pass null to detach it. */
-export async function linkTransaction(transactionId: string, planItemId: string | null) {
-  try {
-    const workspace = await activeWorkspaceId();
-    const { error } = await tenantFilter(
-      supabase().from('finance_logs').update({
-        plan_item_id: planItemId,
-        updated_at: new Date().toISOString(),
-      }),
-      workspace
-    ).eq('id', transactionId);
-    if (error) throw new Error(error.message);
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not link' };
-  }
-
-  revalidatePath('/');
-  return { ok: true };
-}

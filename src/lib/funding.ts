@@ -101,8 +101,6 @@ export interface FundingData {
   items: PlanItemRow[];
   /** Everything already attributed to a plan line. */
   linked: Transaction[];
-  /** Recent spending with no plan line yet, offered for one-click attribution. */
-  unlinked: Transaction[];
 }
 
 export const PLAN_COST_CATEGORIES = [
@@ -237,7 +235,7 @@ async function ensurePlan(workspace: string): Promise<PlanRow | null> {
 
 export async function fetchFunding(): Promise<FundingData> {
   const empty: FundingData = {
-    configured: false, plan: null, items: [], linked: [], unlinked: [],
+    configured: false, plan: null, items: [], linked: [],
   };
   if (!isDirectReadConfigured()) return empty;
 
@@ -246,7 +244,7 @@ export async function fetchFunding(): Promise<FundingData> {
     const plan = await ensurePlan(workspace);
     if (!plan) return { ...empty, configured: true };
 
-    const [itemsResult, linkedResult, unlinkedResult] = await Promise.all([
+    const [itemsResult, linkedResult] = await Promise.all([
       tenantFilter(
         supabase().from('finance_plan_items').select(PLAN_ITEM_COLUMNS),
         workspace
@@ -257,24 +255,16 @@ export async function fetchFunding(): Promise<FundingData> {
       tenantFilter(supabase().from('finance_logs').select('*'), workspace)
         .not('plan_item_id', 'is', null)
         .order('date', { ascending: false }),
-      // The offer to attribute more. Only ever a short list, so it is bounded.
-      tenantFilter(supabase().from('finance_logs').select('*'), workspace)
-        .is('plan_item_id', null)
-        .eq('type', 'expense')
-        .order('date', { ascending: false })
-        .limit(20),
     ]);
 
     if (itemsResult.error) throw new Error(itemsResult.error.message);
     if (linkedResult.error) throw new Error(linkedResult.error.message);
-    if (unlinkedResult.error) throw new Error(unlinkedResult.error.message);
 
     return {
       configured: true,
       plan,
       items: (itemsResult.data || []) as PlanItemRow[],
       linked: (linkedResult.data || []) as Transaction[],
-      unlinked: (unlinkedResult.data || []) as Transaction[],
     };
   } catch (err) {
     console.error('Funding plan read failed:', err instanceof Error ? err.message : err);

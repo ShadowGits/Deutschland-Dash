@@ -160,6 +160,10 @@ export default function DashboardClient({
     : projects[0];
 
   const projectName = activeProject?.name || '';
+  // Finance is the funding plan and nothing else. Task counters, monthly goals
+  // and the Drive folder all read zero there — it has no tasks and no
+  // documents — so they were noise wrapped around the one thing on the page.
+  const isFinance = projectName === 'Finance';
 
   return (
     <div className="flex h-screen bg-[#f4f6fa] overflow-hidden font-sans">
@@ -260,6 +264,7 @@ export default function DashboardClient({
               )}
 
               {/* Top KPIs */}
+              {!isFinance && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <Card className="shadow-sm border-0 rounded-xl">
                   <CardContent className="p-6">
@@ -317,6 +322,7 @@ export default function DashboardClient({
                   </CardContent>
                 </Card>
               </div>
+              )}
 
               {/* Dedicated Domain Widgets */}
               {projectName === 'Study' && studyTopics.length > 0 && (
@@ -336,6 +342,7 @@ export default function DashboardClient({
               )}
 
               {/* Monthly Goals Section */}
+              {!isFinance && (
               <div className="grid grid-cols-1 gap-6">
                 <Card className="shadow-sm border-0 rounded-xl">
                   <CardHeader className="border-b bg-white rounded-t-xl px-6 py-5">
@@ -345,13 +352,14 @@ export default function DashboardClient({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <MonthlyGoalsTable 
-                      projectId={activeProject.id} 
-                      goals={activeProject.monthly_goals || []} 
+                    <MonthlyGoalsTable
+                      projectId={activeProject.id}
+                      goals={activeProject.monthly_goals || []}
                     />
                   </CardContent>
                 </Card>
               </div>
+              )}
 
               {/* Custom Project Tables */}
               <ProjectCustomTablesWidget
@@ -446,6 +454,7 @@ export default function DashboardClient({
 
               {/* Project Files & Google Drive Documents Section — collapsible,
                   parked at the end so it doesn't crowd the top of the view. */}
+              {!isFinance && (
               <div className="grid grid-cols-1 gap-6">
                 <Card className="shadow-sm border-0 rounded-xl">
                   <CardHeader
@@ -476,6 +485,7 @@ export default function DashboardClient({
                   )}
                 </Card>
               </div>
+              )}
 
               {/* Add Widget Button */}
               <div className="flex justify-center mt-8 pb-8">
