@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { updateProjectMilestone } from '@/app/actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Gauge, ChevronDown, ChevronRight } from 'lucide-react';
+import { Gauge, ChevronDown, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface MilestoneRow {
   milestone_id: string;
@@ -42,8 +43,27 @@ export default function MilestoneHealth({ milestones = [] }: { milestones?: Mile
   // Finished milestones are kept but folded away — the panel is about what
   // still needs attention, and they would otherwise crowd out the live ones.
   const [showComplete, setShowComplete] = useState(false);
-  const live = milestones.filter(m => m.status !== 'complete');
-  const complete = milestones.filter(m => m.status === 'complete');
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const current = milestones.filter(m => !completedIds.has(m.milestone_id));
+  const live = current.filter(m => m.status !== 'complete');
+  const complete = current.filter(m => m.status === 'complete');
+
+  const markComplete = async (row: MilestoneRow) => {
+    if (savingId) return;
+    setSavingId(row.milestone_id);
+    setError(null);
+    try {
+      const result = await updateProjectMilestone(row.milestone_id, { status: 'done' });
+      if (!result?.milestone) throw new Error('Save failed');
+      setCompletedIds(prev => new Set(prev).add(row.milestone_id));
+    } catch {
+      setError('Could not complete the milestone. Its previous status is unchanged. Please retry.');
+    } finally {
+      setSavingId(null);
+    }
+  };
   const visible = showComplete ? [...live, ...complete] : live;
 
   const counts = {
@@ -69,6 +89,7 @@ export default function MilestoneHealth({ milestones = [] }: { milestones?: Mile
       </CardHeader>
 
       <CardContent className="p-0">
+        {error && <p role="alert" className="mx-6 my-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {visible.length === 0 ? (
           <div className="p-8 text-center text-sm text-gray-500">
             No open milestones with tasks to track.
@@ -93,6 +114,14 @@ export default function MilestoneHealth({ milestones = [] }: { milestones?: Mile
                       {style.label}
                     </span>
                   </div>
+
+                  <button type="button" onClick={() => markComplete(row)} disabled={savingId !== null}
+                    aria-label={`Mark complete milestone ${row.name}`}
+                    title="Changes milestone status only; linked task statuses stay unchanged"
+                    className="mb-3 flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5 text-xs text-gray-600 hover:bg-indigo-50 disabled:opacity-50">
+                    {savingId === row.milestone_id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                    Mark complete
+                  </button>
 
                   {/* Work done, with a marker for how much of the schedule has
                       gone. Marker ahead of the bar means running behind. */}

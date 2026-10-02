@@ -19,6 +19,7 @@ interface TableTask {
   id: string;
   title: string;
   status: string;
+  milestone_id?: string | null;
   scheduled_date?: string | null;
   estimated_minutes?: number | null;
   metadata?: Record<string, unknown> | null;
@@ -55,6 +56,10 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   // rather than waiting for the refetch.
   const [milestoneDates, setMilestoneDates] = useState<Record<string, { start_date?: string; target_date?: string }>>({});
   const [savingMilestone, setSavingMilestone] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [linkSaving, setLinkSaving] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const linkDialogRef = useRef<HTMLDialogElement>(null);
 
   const saveMilestoneDate = async (
     milestone: any,
@@ -68,12 +73,15 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     setSavingMilestone(milestone.id);
     try {
       // Empty clears the date rather than storing "", which is not a date.
-      await updateProjectMilestone(milestone.id, { [field]: value || null });
+      setActionError(null);
+      const result = await updateProjectMilestone(milestone.id, { [field]: value || null });
+      if (!result?.milestone) throw new Error('Save failed');
       setMilestones((prev) =>
         prev.map((m) => (m.id === milestone.id ? { ...m, [field]: value || null } : m))
       );
     } catch (e) {
       console.error('Failed to save milestone date', e);
+      setActionError('Could not save the milestone date. Your previous date is unchanged.');
       setMilestoneDates((prev) => ({
         ...prev,
         [milestone.id]: { ...prev[milestone.id], [field]: milestone[field] ?? '' },
@@ -90,6 +98,45 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   const [showNewMilestone, setShowNewMilestone] = useState(false);
   const [newMilestoneName, setNewMilestoneName] = useState('');
   const [creatingMilestone, setCreatingMilestone] = useState(false);
+
+  useEffect(() => {
+    const dialog = linkDialogRef.current;
+    if (!dialog) return;
+    if (linkingTaskId && !dialog.open) dialog.showModal();
+    if (!linkingTaskId && dialog.open) dialog.close();
+  }, [linkingTaskId]);
+
+  const closeLinkDialog = () => {
+    if (linkSaving || creatingMilestone) return;
+    setLinkingTaskId(null);
+    setShowNewMilestone(false);
+    setNewMilestoneName('');
+    setLinkError(null);
+  };
+
+  const openLinkDialog = (taskId: string) => {
+    setLinkError(null);
+    setShowNewMilestone(false);
+    setNewMilestoneName('');
+    setLinkingTaskId(taskId);
+  };
+
+  const handleMilestoneStatus = async (milestone: { id: string; status: string }) => {
+    if (savingMilestone) return;
+    setSavingMilestone(milestone.id);
+    setActionError(null);
+    const status = milestone.status === 'done' ? 'in_progress' : 'done';
+    try {
+      const result = await updateProjectMilestone(milestone.id, { status });
+      if (!result?.milestone) throw new Error('Save failed');
+      setMilestones(prev => prev.map(m => m.id === milestone.id ? { ...m, ...result.milestone } : m));
+    } catch {
+      setActionError('Could not update the milestone. Its previous status is unchanged. Please retry.');
+    } finally {
+      setSavingMilestone(null);
+    }
+  };
+
 
   const loadData = async ({ background = false } = {}) => {
     if (!background) setLoading(true);
@@ -213,34 +260,62 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     if (e.key === 'Escape') cancelEdit();
   };
 
-  const handleLinkMilestone = async (taskId: string, milestoneId: string) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, milestone_id: milestoneId } : t));
-    setLinkingTaskId(null);
+  const handleLinkMilestone = async (taskId: string, milestoneId: string | null) => {
+    if (linkSaving) return false;
+    setLinkSaving(true);
+    setLinkError(null);
     try {
-      await linkTaskToMilestone(taskId, milestoneId);
-    } catch (e) {
-      console.error(e);
-      await loadData();
+      const saved = await linkTaskToMilestone(taskId, milestoneId);
+      if (!saved) throw new Error('Save failed');
+      // Keep the loaded task details; no whole-project refetch for a link.
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, milestone_id: milestoneId } : t));
+      setCollapsedGroups(prev => {
+        const next = new Set(prev);
+        next.delete(milestoneId || '__none__');
+        return next;
+      });
+      setLinkingTaskId(null);
+      setShowNewMilestone(false);
+      setNewMilestoneName('');
+      return true;
+    } catch {
+      setLinkError('Could not link this task. Its existing milestone is unchanged. Please retry.');
+      return false;
+    } finally {
+      setLinkSaving(false);
     }
   };
 
   const handleCreateAndLink = async (taskId: string) => {
-    if (!newMilestoneName.trim()) return;
+    if (!newMilestoneName.trim() || creatingMilestone || linkSaving) return;
     setCreatingMilestone(true);
+    setLinkError(null);
     try {
       const result = await createProjectMilestone(projectId, newMilestoneName.trim());
-      if (result?.milestone) {
-        setMilestones(prev => [...prev, result.milestone]);
-        await handleLinkMilestone(taskId, result.milestone.id);
-      }
-      setNewMilestoneName('');
+      if (!result?.milestone) throw new Error('Save failed');
+      setMilestones(prev => [...prev, result.milestone]);
+      // If linking fails, keep the created milestone as a choice for retry.
       setShowNewMilestone(false);
-    } catch (e) {
-      console.error(e);
+      setNewMilestoneName('');
+      await handleLinkMilestone(taskId, result.milestone.id);
+    } catch {
+      setLinkError('Could not create the milestone. Please retry.');
     } finally {
       setCreatingMilestone(false);
     }
   };
+
+  const renderMilestoneLink = (task: TableTask) => (
+    <button
+      type="button"
+      onClick={() => openLinkDialog(task.id)}
+      className="p-1.5 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 flex-shrink-0"
+      title={task.milestone_id ? 'Change milestone' : 'Link to milestone'}
+      aria-label={`${task.milestone_id ? 'Change milestone for' : 'Link to milestone for'} ${task.title || 'task'}`}
+    >
+      <Link size={14} />
+    </button>
+  );
 
   // The plan runs to three hundred rows, so land on the next thing to do
   // rather than at the top. Same behaviour the CSV tracker had. Earliest
@@ -330,12 +405,10 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
 
   // Add milestone groups in milestone order
   for (const m of milestones) {
-    const mTasks = byMilestone.get(m.id);
-    if (mTasks && mTasks.length > 0) {
-      const open = mTasks.filter(t => t.status !== 'done');
-      const done = mTasks.filter(t => t.status === 'done');
-      grouped.push({ key: m.id, milestone: m, tasks: [...open, ...done] });
-    }
+    const mTasks = byMilestone.get(m.id) || [];
+    const open = mTasks.filter(t => t.status !== 'done');
+    const done = mTasks.filter(t => t.status === 'done');
+    grouped.push({ key: m.id, milestone: m, tasks: [...open, ...done] });
   }
 
   // Add unlinked group
@@ -349,7 +422,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
   // the work still in front of you stays at the top. Stable, so the remaining
   // milestones keep their own order.
   const isGroupDone = (g: typeof grouped[number]) =>
-    g.tasks.length > 0 && g.tasks.every(t => t.status === 'done');
+    g.milestone ? g.milestone.status === 'done' : g.tasks.length > 0 && g.tasks.every(t => t.status === 'done');
   grouped = [...grouped.filter(g => !isGroupDone(g)), ...grouped.filter(isGroupDone)];
 
   // Columns a project brings with it, e.g. the study plan's Subject and
@@ -437,6 +510,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
         <td className={`px-3 py-2 font-medium ${isDone ? 'line-through' : 'text-gray-800'}`}>
           <span className="flex items-center gap-1.5">
             {task.title}
+            {renderMilestoneLink(task)}
             <button
               onClick={() => startEdit(task)}
               className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 transition-all flex-shrink-0"
@@ -456,7 +530,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     );
   };
 
-  const renderTask = (task: any, showMilestoneLink: boolean) => {
+  const renderTask = (task: any) => {
     const isDone = task.status === 'done';
     const isEditing = editingId === task.id;
 
@@ -516,69 +590,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
               )}
             </div>
 
-            {/* Milestone link button for unlinked tasks */}
-            {showMilestoneLink && !isDone && (
-              <div className="relative flex-shrink-0">
-                {linkingTaskId === task.id ? (
-                  <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-lg shadow-lg border border-gray-200 p-2 w-56">
-                    <p className="text-xs font-medium text-gray-500 mb-1.5 px-1">Link to milestone</p>
-                    {milestones.map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => handleLinkMilestone(task.id, m.id)}
-                        className="w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-md transition-colors truncate"
-                      >
-                        {m.name}
-                      </button>
-                    ))}
-                    <div className="border-t border-gray-100 mt-1.5 pt-1.5">
-                      {showNewMilestone ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={newMilestoneName}
-                            onChange={(e) => setNewMilestoneName(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateAndLink(task.id); if (e.key === 'Escape') { setShowNewMilestone(false); setNewMilestoneName(''); } }}
-                            placeholder="Milestone name..."
-                            className="flex-1 p-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => handleCreateAndLink(task.id)}
-                            disabled={creatingMilestone || !newMilestoneName.trim()}
-                            className="p-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex-shrink-0"
-                          >
-                            {creatingMilestone ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowNewMilestone(true)}
-                          className="w-full text-left px-2 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors flex items-center gap-1.5"
-                        >
-                          <PlusCircle size={14} />
-                          New milestone
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => { setLinkingTaskId(null); setShowNewMilestone(false); setNewMilestoneName(''); }}
-                      className="w-full text-center text-xs text-gray-400 hover:text-gray-600 mt-1.5 py-1"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setLinkingTaskId(task.id)}
-                    className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 transition-all"
-                    title="Link to milestone"
-                  >
-                    <Link size={13} />
-                  </button>
-                )}
-              </div>
-            )}
+            {renderMilestoneLink(task)}
           </>
         )}
       </li>
@@ -638,19 +650,20 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
           </form>
         </div>
 
+        {actionError && <p role="alert" className="mx-4 my-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
         <div className="max-h-[500px] overflow-y-auto p-2">
           {loading ? (
             <div className="flex justify-center p-8">
               <Loader2 className="animate-spin text-indigo-600" size={24} />
             </div>
-          ) : tasks.length === 0 ? (
+          ) : tasks.length === 0 && milestones.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>No tasks found. Create one above!</p>
             </div>
           ) : grouped.length === 1 && !grouped[0].milestone ? (
             // No milestones at all — render flat like before
             <ul className="space-y-1">
-              {grouped[0].tasks.map(task => renderTask(task, false))}
+              {grouped[0].tasks.map(task => renderTask(task))}
             </ul>
           ) : (
             <div className="space-y-3">
@@ -659,16 +672,18 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                 const doneCount = group.tasks.filter(t => t.status === 'done').length;
                 const totalCount = group.tasks.length;
                 const isNoMilestone = !group.milestone;
-                const groupDone = totalCount > 0 && doneCount === totalCount;
+                const groupDone = isNoMilestone ? totalCount > 0 && doneCount === totalCount : group.milestone.status === 'done';
                 const columns = metaColumns(group.tasks, group.milestone?.name);
                 const hasMeta = metaKeysOf(group.tasks).length > 0;
 
                 return (
                   <div key={group.key} className="rounded-lg border border-gray-100 overflow-hidden">
-                    {/* Group header */}
+                    {/* Separate buttons avoid nesting completion inside collapse. */}
+                    <div className="flex items-center gap-2 pr-3 bg-gray-50/50">
                     <button
                       onClick={() => toggleGroup(group.key)}
-                      className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
+                      aria-expanded={!isCollapsed}
+                      className={`min-w-0 flex-1 flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
                         groupDone
                           ? 'bg-emerald-50/70 hover:bg-emerald-50'
                           : isNoMilestone ? 'bg-amber-50/60 hover:bg-amber-50' : 'bg-indigo-50/60 hover:bg-indigo-50'
@@ -701,13 +716,27 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                         </span>
                       )}
                     </button>
+                    {!isNoMilestone && (
+                      <button
+                        type="button"
+                        onClick={() => handleMilestoneStatus(group.milestone)}
+                        disabled={savingMilestone !== null}
+                        aria-label={`${groupDone ? 'Reopen' : 'Mark complete'} milestone ${group.milestone.name}`}
+                        title="Changes milestone status only; linked task statuses stay unchanged"
+                        className="flex-shrink-0 flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-indigo-50 disabled:opacity-50"
+                      >
+                        {savingMilestone === group.milestone.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                        {groupDone ? 'Reopen' : 'Mark complete'}
+                      </button>
+                    )}
+                    </div>
 
                     {/* Milestone dates. Health rates progress against how much
                         of the schedule has gone, so an explicit start matters:
                         without one it falls back to the earliest task, which
                         moves every time a task is rescheduled. */}
                     {!isCollapsed && !isNoMilestone && (
-                      <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 bg-white text-xs text-gray-500">
+                      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-gray-100 bg-white text-xs text-gray-500">
                         <Calendar size={12} className="text-gray-400 flex-shrink-0" />
                         <label className="flex items-center gap-1.5">
                           <span>Start</span>
@@ -739,7 +768,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
 
                     {/* Tasks */}
                     {!isCollapsed && (
-                      hasMeta ? (
+                      group.tasks.length === 0 ? <p className="px-3 py-4 text-sm text-gray-500">No linked tasks yet. You can still mark this milestone complete.</p> : hasMeta ? (
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm text-left">
                             <thead className="text-xs text-gray-500 uppercase bg-gray-50">
@@ -763,7 +792,7 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                         </div>
                       ) : (
                         <ul className="space-y-0.5 p-1">
-                          {group.tasks.map(task => renderTask(task, isNoMilestone))}
+                          {group.tasks.map(task => renderTask(task))}
                         </ul>
                       )
                     )}
@@ -774,6 +803,42 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
           )}
         </div>
       </CardContent>
+      <dialog
+        ref={linkDialogRef}
+        aria-labelledby="milestone-link-title"
+        aria-describedby="milestone-link-description"
+        onCancel={event => { event.preventDefault(); closeLinkDialog(); }}
+        className="m-auto w-[min(28rem,calc(100vw-2rem))] max-h-[min(36rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-gray-200 bg-white p-5 text-gray-800 shadow-xl backdrop:bg-black/40"
+      >
+        <h2 id="milestone-link-title" className="text-lg font-semibold">Link to milestone</h2>
+        <p id="milestone-link-description" className="mt-1 mb-4 text-sm text-gray-500">{tasks.find(t => t.id === linkingTaskId)?.title || 'Choose a milestone for this task'}</p>
+        {linkError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{linkError}</p>}
+        <div className="space-y-1">
+          {milestones.map(m => (
+            <button key={m.id} type="button" disabled={linkSaving || creatingMilestone}
+              onClick={() => linkingTaskId && handleLinkMilestone(linkingTaskId, m.id)}
+              className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-indigo-50 disabled:opacity-50">
+              <span>{m.name}{m.status === 'done' && <span className="ml-2 text-xs text-emerald-700">Complete</span>}</span>
+              {tasks.find(t => t.id === linkingTaskId)?.milestone_id === m.id && <Check size={15} />}
+            </button>
+          ))}
+          {tasks.find(t => t.id === linkingTaskId)?.milestone_id && (
+            <button type="button" disabled={linkSaving || creatingMilestone} onClick={() => linkingTaskId && handleLinkMilestone(linkingTaskId, null)} className="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">Remove milestone link</button>
+          )}
+        </div>
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          {showNewMilestone ? (
+            <form onSubmit={event => { event.preventDefault(); if (linkingTaskId) handleCreateAndLink(linkingTaskId); }} className="flex gap-2">
+              <input type="text" value={newMilestoneName} onChange={event => setNewMilestoneName(event.target.value)} autoFocus aria-label="New milestone name" placeholder="Milestone name…" className="min-w-0 flex-1 rounded-lg border border-gray-200 p-2 text-sm" disabled={creatingMilestone || linkSaving} />
+              <button type="submit" disabled={creatingMilestone || linkSaving || !newMilestoneName.trim()} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white disabled:opacity-50">{creatingMilestone ? 'Creating…' : 'Create & link'}</button>
+            </form>
+          ) : <button type="button" onClick={() => setShowNewMilestone(true)} disabled={linkSaving || creatingMilestone} className="flex items-center gap-2 rounded-lg p-2 text-sm text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"><PlusCircle size={15} />New milestone</button>}
+        </div>
+        <div className="mt-4 flex items-center justify-between">
+          <span role="status" className="text-sm text-gray-500">{linkSaving ? 'Saving link…' : ''}</span>
+          <button type="button" onClick={closeLinkDialog} disabled={linkSaving || creatingMilestone} className="rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+        </div>
+      </dialog>
     </Card>
   );
 }

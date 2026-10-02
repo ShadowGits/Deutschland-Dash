@@ -1,0 +1,7 @@
+# Milestone linking and completion
+
+Task milestone linking opens a native modal dialog, so the picker cannot be clipped by the widget's scrolling list or card. Links are available in both list and metadata-table layouts, including projects without existing milestones. A task can be linked, moved to another milestone, unlinked, or linked to a newly created milestone. The current task details are retained; linking does not refetch the whole project. A rejected save keeps the prior link and the picker open with an error.
+
+Project milestone headers provide Mark complete and Reopen actions. Empty milestones remain visible and can be completed. These actions persist the milestone's own status (`done` or `in_progress`) independently of linked task checkboxes. Completing all tasks does not silently change milestone status. Home's Milestone Health panel also provides Mark complete; saved milestones leave the attention list. Failed writes preserve the previous status and show an error.
+
+Validation: TypeScript and production compilation; browser checks against an isolated fake API for metadata-table linking, rejection/retained link, unlinking, creation/linking, empty milestone completion/reopening and Home completion. Backend fixture state verified that task statuses remained unchanged. Native dialog visibility was verified above the clipping containers. Production task data was not changed during UI validation.

@@ -178,6 +178,7 @@ export async function createProjectMilestone(projectId: string, name: string, ta
     body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json' }
   });
+  if (!res?.milestone) return null;
   revalidatePath('/');
   return res;
 }
@@ -194,6 +195,7 @@ export async function updateProjectMilestone(
     body: JSON.stringify(updates),
     headers: { 'Content-Type': 'application/json' }
   });
+  if (!res?.milestone) return null;
   revalidatePath('/');
   return res;
 }
@@ -204,7 +206,7 @@ export async function linkTaskToMilestone(taskId: string, milestoneId: string | 
     body: JSON.stringify({ milestone_id: milestoneId }),
     headers: { 'Content-Type': 'application/json' }
   });
-  revalidatePath('/');
+  if (res !== null) revalidatePath('/');
   return res !== null;
 }
 
