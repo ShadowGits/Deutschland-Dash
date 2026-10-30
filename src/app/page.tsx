@@ -1,4 +1,4 @@
-import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetchFinanceGoals, fetchWeekView, fetchProjectWidgets } from '@/lib/api';
+import { fetchMetrics, fetchStudyTopics, fetchBooks, fetchGermanyDocuments, fetchFinanceGoals, fetchWeekView, fetchProjectWidgets, fetchInbox } from '@/lib/api';
 import { fetchMoneyMonth } from '@/lib/finance';
 import { fetchFunding } from '@/lib/funding';
 import DashboardClient from '@/components/DashboardClient';
@@ -7,7 +7,7 @@ import { Suspense } from 'react';
 export const revalidate = 300;
 
 export default async function DashboardPage() {
-  const [metrics, studyTopics, books, germanyDocs, financeGoals, weekData, money, funding] = await Promise.all([
+  const [metrics, studyTopics, books, germanyDocs, financeGoals, weekData, money, funding, inbox] = await Promise.all([
     fetchMetrics(),
     fetchStudyTopics(),
     fetchBooks(),
@@ -16,7 +16,8 @@ export default async function DashboardPage() {
     fetchWeekView(),
     // Straight to Postgres, so these two are not waiting on a Cloud Run cold start.
     fetchMoneyMonth(),
-    fetchFunding()
+    fetchFunding(),
+    fetchInbox()
   ]);
   
   const projects = metrics?.projects || [];
@@ -52,6 +53,7 @@ export default async function DashboardPage() {
         projectWidgets={projectWidgetsMap}
         money={money}
         funding={funding}
+        inbox={inbox}
       />
     </Suspense>
   );

@@ -200,6 +200,39 @@ export async function updateProjectMilestone(
   return res;
 }
 
+// Deletes the milestone only. Its tasks stay, no longer linked to it — the
+// database unlinks them in the same statement.
+export async function deleteMilestoneAction(milestoneId: string) {
+  const res = await makeRequest<{ deleted: string; tasks_unlinked: number }>(
+    `/v2/milestones/${milestoneId}`,
+    { method: 'DELETE' }
+  );
+  if (res) revalidatePath('/');
+  return res;
+}
+
+// Clears backlog tasks in one request: "move" plans them for toDate with no
+// time (a deadline that has already passed moves with them), "drop" closes
+// them as skipped rather than deleting them.
+export async function triageTasksAction(
+  taskIds: string[],
+  action: 'move' | 'drop',
+  toDate?: string
+) {
+  const res = await makeRequest<{
+    updated: string[];
+    deadline_moved: string[];
+    already_closed: string[];
+    not_found: string[];
+  }>('/v2/day/tasks/triage', {
+    method: 'POST',
+    body: JSON.stringify({ task_ids: taskIds, action, to_date: toDate ?? null }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (res) revalidatePath('/');
+  return res;
+}
+
 export async function linkTaskToMilestone(taskId: string, milestoneId: string | null) {
   const res = await makeRequest(`/v2/day/tasks/${taskId}`, {
     method: 'PATCH',

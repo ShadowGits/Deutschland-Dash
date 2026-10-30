@@ -19,6 +19,7 @@ import BooksWidget from '@/components/widgets/BooksWidget';
 import GermanyDocsWidget from '@/components/widgets/GermanyDocsWidget';
 import FinanceGoalsWidget from '@/components/widgets/FinanceGoalsWidget';
 import GlobalDashboard from '@/components/GlobalDashboard';
+import FocusBoard from '@/components/focus/FocusBoard';
 import WeeklyView from '@/components/WeeklyView';
 import { useSearchParams, useRouter } from 'next/navigation';
 import NotificationBell from '@/components/NotificationBell';
@@ -26,6 +27,10 @@ import MoneyView from '@/components/MoneyView';
 import FundingPlanWidget from '@/components/widgets/FundingPlanWidget';
 import type { MoneyMonth } from '@/lib/finance';
 import type { FundingData } from '@/lib/funding';
+import type { InboxData } from '@/lib/focus';
+
+// Sidebar entries that are views rather than projects.
+const VIEW_IDS = ['dashboard', 'overview', 'weekly', 'money'];
 
 interface DashboardClientProps {
   metrics: any;
@@ -38,6 +43,7 @@ interface DashboardClientProps {
   projectWidgets?: Record<string, any[]>;
   money?: MoneyMonth | null;
   funding?: FundingData | null;
+  inbox?: InboxData | null;
 }
 
 export default function DashboardClient({
@@ -50,7 +56,8 @@ export default function DashboardClient({
   weekData = null,
   projectWidgets = {},
   money = null,
-  funding = null
+  funding = null,
+  inbox = null
 }: DashboardClientProps) {
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('projectId') || 'dashboard';
@@ -139,7 +146,7 @@ export default function DashboardClient({
   };
 
   useEffect(() => {
-    if (activeProjectId && !['dashboard', 'weekly', 'money'].includes(activeProjectId)) {
+    if (activeProjectId && !VIEW_IDS.includes(activeProjectId)) {
       getProjectFiles(activeProjectId).then(files => {
         setProjectFiles(files || []);
       });
@@ -159,6 +166,25 @@ export default function DashboardClient({
     ? projects.find((p: any) => p.id === activeProjectId)
     : projects[0];
 
+  // A project only folds away in the sidebar when its page would have nothing
+  // on it: no tasks (open or done), widgets, files or goals, and none of the
+  // trackers that appear on a project by name. Finance always stays — it is
+  // the funding plan.
+  const contentful = new Set<string>(
+    projects
+      .filter((p) =>
+        (p.total_tasks ?? p.open_tasks ?? 0) > 0 ||
+        (projectWidgets[p.id]?.length ?? 0) > 0 ||
+        (p.files?.length ?? 0) > 0 ||
+        (p.monthly_goals?.length ?? 0) > 0 ||
+        p.name === 'Finance' ||
+        (p.name === 'Study' && studyTopics.length > 0) ||
+        (p.name === 'Reading' && books.length > 0) ||
+        (p.name === 'Germany' && germanyDocs.length > 0)
+      )
+      .map((p) => String(p.id))
+  );
+
   const projectName = activeProject?.name || '';
   // Finance is the funding plan and nothing else. Task counters, monthly goals
   // and the Drive folder all read zero there — it has no tasks and no
@@ -167,16 +193,18 @@ export default function DashboardClient({
 
   return (
     <div className="flex h-screen bg-[#f4f6fa] overflow-hidden font-sans">
-      <Sidebar 
-        projects={projects} 
-        activeProjectId={activeProject?.id} 
+      <Sidebar
+        projects={projects}
+        activeProjectId={activeProjectId}
         onProjectSelect={setActiveProjectId}
+        contentful={contentful}
       />
       
       <div className="flex-1 overflow-auto">
         <header className="bg-white border-b px-8 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-800">
-            {activeProjectId === 'dashboard' ? 'Global Dashboard' :
+            {activeProjectId === 'dashboard' ? 'Focus' :
+           activeProjectId === 'overview' ? 'Overview' :
              activeProjectId === 'weekly' ? 'Week View' :
              activeProjectId === 'money' ? 'Money' :
              activeProject ? activeProject.name : 'Dashboard'}
@@ -218,6 +246,8 @@ export default function DashboardClient({
             rows they fetched themselves. */}
         <main className="p-8" key={refreshNonce}>
           {activeProjectId === 'dashboard' ? (
+            <FocusBoard inbox={inbox} weekData={weekData} metrics={metrics} projects={projects} />
+          ) : activeProjectId === 'overview' ? (
             <div className="space-y-6">
               <GlobalDashboard metrics={metrics} projects={projects} monthlyGoals={weekData?.monthly_goals || []} />
               

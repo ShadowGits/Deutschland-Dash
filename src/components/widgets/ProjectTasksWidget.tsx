@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckSquare, X, Plus, Loader2, Calendar, Pencil, Check, Milestone, ChevronDown, ChevronRight, Link, PlusCircle, CheckCircle2 } from 'lucide-react';
-import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getProjectMilestones, createProjectMilestone, linkTaskToMilestone, updateProjectMilestone } from '@/app/actions';
+import { getProjectTasks, addTaskToProject, updateTaskStatus, updateTask, getProjectMilestones, createProjectMilestone, linkTaskToMilestone, updateProjectMilestone, deleteMilestoneAction } from '@/app/actions';
+import ConfirmDeleteButton from '@/components/focus/ConfirmDeleteButton';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -135,6 +136,20 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
     } finally {
       setSavingMilestone(null);
     }
+  };
+
+  // The milestone goes; its tasks stay and move to "No Milestone", which is
+  // exactly what the database does to them.
+  const handleDeleteMilestone = async (milestone: { id: string; name: string }) => {
+    setActionError(null);
+    const result = await deleteMilestoneAction(milestone.id).catch(() => null);
+    if (!result) {
+      setActionError(`Could not delete "${milestone.name}". It is unchanged. Please retry.`);
+      return false;
+    }
+    setMilestones(prev => prev.filter(m => m.id !== milestone.id));
+    setTasks(prev => prev.map(t => (t.milestone_id === milestone.id ? { ...t, milestone_id: null } : t)));
+    return true;
   };
 
 
@@ -728,6 +743,14 @@ export default function ProjectTasksWidget({ projectId, widget, onDelete }: Proj
                         {savingMilestone === group.milestone.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
                         {groupDone ? 'Reopen' : 'Mark complete'}
                       </button>
+                    )}
+                    {!isNoMilestone && (
+                      <ConfirmDeleteButton
+                        what={`milestone ${group.milestone.name}`}
+                        confirmText={totalCount ? `Delete? ${totalCount} task${totalCount === 1 ? '' : 's'} stay` : 'Delete?'}
+                        onConfirm={() => handleDeleteMilestone(group.milestone)}
+                        className="flex-shrink-0"
+                      />
                     )}
                     </div>
 

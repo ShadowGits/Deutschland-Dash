@@ -1,4 +1,5 @@
 
+import type { InboxData } from '@/lib/focus';
 
 const BASE_URL = process.env.NEXT_PUBLIC_PLANNER_API_URL || "https://planner-os-api-645411441153.us-central1.run.app";
 const APP_KEY = process.env.PLANNER_APP_KEY;
@@ -56,6 +57,12 @@ export async function fetchMetrics() {
 export async function fetchWeekView(dateStr?: string) {
   const path = dateStr ? `/v2/week?date=${dateStr}` : '/v2/week';
   return await makeRequest<any>(path);
+}
+
+// Overdue, missed and never-scheduled tasks across every project, plus today's
+// untimed ones. The server decides what "today" is, in the workspace's zone.
+export async function fetchInbox() {
+  return await makeRequest<InboxData>('/v2/day/inbox');
 }
 
 export async function fetchStudyTopics() {

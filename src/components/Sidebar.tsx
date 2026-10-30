@@ -1,65 +1,104 @@
 'use client';
 
-import { LayoutDashboard, BookOpen, Briefcase, Globe, Languages, GraduationCap, LineChart, Dumbbell, Music, BookOpenCheck, Settings, Calendar, Wallet } from 'lucide-react';
+import { useState } from 'react';
+import {
+  LayoutDashboard, BookOpen, Briefcase, Globe, Languages, GraduationCap, LineChart, Dumbbell, Music,
+  BookOpenCheck, Settings, Calendar, Wallet, Crosshair, Folder, Home, ChevronDown, ChevronRight,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface SidebarProps {
-  projects: any[];
-  activeProjectId?: string;
-  onProjectSelect: (projectId: string) => void;
+interface SidebarProject {
+  id: string | number;
+  name: string;
+  status?: string;
+  track?: string | null;
+  open_tasks?: number;
 }
 
-export default function Sidebar({ projects, activeProjectId, onProjectSelect }: SidebarProps) {
-  // Map standard project names to icons
-  const iconMap: Record<string, React.ElementType> = {
-    'Study': BookOpen,
-    'Internship and Project': Briefcase,
-    'Germany': Globe,
-    'Language': Languages,
-    'Colleges': GraduationCap,
-    'Finance': LineChart,
-    'Fitness': Dumbbell,
-    'Piano': Music,
-    'Reading': BookOpenCheck,
-  };
+interface SidebarProps {
+  projects: SidebarProject[];
+  activeProjectId?: string;
+  onProjectSelect: (projectId: string) => void;
+  /** Projects with something to show. The rest fold away behind a toggle. */
+  contentful: Set<string>;
+}
 
-  const deutschlandDashNames = ['Study', 'Internship and Project', 'Germany', 'Language', 'Colleges', 'Finance'];
-  const personalNames = ['Fitness', 'Piano', 'Reading'];
+// Familiar projects keep their icons; anything new gets a folder.
+const ICONS: Record<string, React.ElementType> = {
+  Study: BookOpen,
+  'Internship and Project': Briefcase,
+  Germany: Globe,
+  Language: Languages,
+  Colleges: GraduationCap,
+  Finance: LineChart,
+  Fitness: Dumbbell,
+  Piano: Music,
+  Reading: BookOpenCheck,
+  'Life other than Germany': Home,
+};
 
-  const getProjectByName = (name: string) => projects.find(p => p.name === name || p.name === `${name} (Non-Dash)`);
+const TRACK_LABELS: Record<string, string> = { 'germany-move': 'Germany move' };
+const trackLabel = (track?: string | null) =>
+  track ? TRACK_LABELS[track] ?? track.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Everything else';
 
-  const renderProjectLink = (name: string, Icon: React.ElementType) => {
-    const project = getProjectByName(name);
-    if (!project) return null;
-    
-    const isActive = project.id === activeProjectId;
-    
-    return (
-      <button
-        key={project.id}
-        onClick={() => onProjectSelect(project.id)}
+function NavButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+  badge,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left',
+        active ? 'bg-[#1e2646] text-white' : 'text-[#aab2c8] hover:bg-[#1e2646] hover:text-white',
+      )}
+    >
+      <Icon
         className={cn(
-          "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left",
-          isActive 
-            ? "bg-[#1e2646] text-white" 
-            : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
+          'mr-3 flex-shrink-0 h-5 w-5',
+          active ? 'text-emerald-400' : 'text-[#64748b] group-hover:text-emerald-400',
         )}
-      >
-        <Icon 
-          className={cn(
-            "mr-3 flex-shrink-0 h-5 w-5",
-            isActive ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
-          )} 
-        />
-        {name}
-        {project.status === 'done' && (
-          <span className="ml-auto bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full">
-            Done
-          </span>
-        )}
-      </button>
-    );
-  };
+      />
+      <span className="min-w-0 flex-1 truncate" title={typeof children === 'string' ? children : undefined}>
+        {children}
+      </span>
+      {badge}
+    </button>
+  );
+}
+
+/**
+ * Built from the projects that exist, not a list of names written into the
+ * code: that list had drifted, so projects with work in them were missing
+ * while projects with nothing in them took up the space.
+ */
+export default function Sidebar({ projects, activeProjectId, onProjectSelect, contentful }: SidebarProps) {
+  const [showQuiet, setShowQuiet] = useState(false);
+
+  const live = projects.filter((p) => p.status !== 'archived');
+  const isQuiet = (p: SidebarProject) => !contentful.has(String(p.id)) && String(p.id) !== activeProjectId;
+  const quietCount = live.filter(isQuiet).length;
+  const shown = live.filter((p) => showQuiet || !isQuiet(p));
+
+  const groups = new Map<string, SidebarProject[]>();
+  for (const project of shown) {
+    const label = trackLabel(project.track);
+    groups.set(label, [...(groups.get(label) || []), project]);
+  }
+  // Named tracks first, the catch-all last.
+  const ordered = [...groups.entries()].sort(([a], [b]) =>
+    a === 'Everything else' ? 1 : b === 'Everything else' ? -1 : a.localeCompare(b),
+  );
 
   return (
     <aside className="w-64 bg-[#12193b] text-[#aab2c8] flex flex-col h-full border-r border-[#1e2646]">
@@ -69,82 +108,74 @@ export default function Sidebar({ projects, activeProjectId, onProjectSelect }: 
           Cabinet of Tasks
         </div>
       </div>
-      
-      <div className="flex-1 overflow-y-auto py-6 px-4">
-        <div className="mb-8">
-          <p className="px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">
-            Deutschland-Dash
-          </p>
-          <nav className="space-y-1">
-            {/* Static UI elements now correctly routed */}
-            <button 
-              onClick={() => onProjectSelect('dashboard')}
-              className={cn(
-                "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left",
-                activeProjectId === 'dashboard' 
-                  ? "bg-[#1e2646] text-white" 
-                  : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
-              )}
-            >
-              <LayoutDashboard className={cn(
-                "mr-3 flex-shrink-0 h-5 w-5",
-                activeProjectId === 'dashboard' ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
-              )} />
-              Dashboard
-            </button>
-            
-            {deutschlandDashNames.map(name => renderProjectLink(name, iconMap[name] || LayoutDashboard))}
 
-            <button 
-              onClick={() => onProjectSelect('weekly')}
-              className={cn(
-                "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left mt-4",
-                activeProjectId === 'weekly' 
-                  ? "bg-[#1e2646] text-white" 
-                  : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
-              )}
-            >
-              <Calendar className={cn(
-                "mr-3 flex-shrink-0 h-5 w-5",
-                activeProjectId === 'weekly' ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
-              )} />
-              Week View
-            </button>
-            <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white">
-              <Settings className="mr-3 flex-shrink-0 h-5 w-5 text-[#64748b] group-hover:text-emerald-400" />
-              Settings
-            </button>
-          </nav>
-        </div>
+      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-7">
+        <nav className="space-y-1">
+          <NavButton active={activeProjectId === 'dashboard'} onClick={() => onProjectSelect('dashboard')} icon={Crosshair}>
+            Focus
+          </NavButton>
+          <NavButton active={activeProjectId === 'weekly'} onClick={() => onProjectSelect('weekly')} icon={Calendar}>
+            Week View
+          </NavButton>
+          <NavButton active={activeProjectId === 'overview'} onClick={() => onProjectSelect('overview')} icon={LayoutDashboard}>
+            Overview
+          </NavButton>
+          {/* Money is a view rather than a project, so it is routed by id. */}
+          <NavButton active={activeProjectId === 'money'} onClick={() => onProjectSelect('money')} icon={Wallet}>
+            Money
+          </NavButton>
+        </nav>
 
-        <div>
-          <p className="px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">
-            Non-Dash (Persona)
-          </p>
-          <nav className="space-y-1">
-            {/* Money is a view rather than a project, so it is routed like the
-                Dashboard and Week View buttons instead of by project name. */}
-            <button
-              onClick={() => onProjectSelect('money')}
-              className={cn(
-                "w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left",
-                activeProjectId === 'money'
-                  ? "bg-[#1e2646] text-white"
-                  : "text-[#aab2c8] hover:bg-[#1e2646] hover:text-white"
-              )}
-            >
-              <Wallet className={cn(
-                "mr-3 flex-shrink-0 h-5 w-5",
-                activeProjectId === 'money' ? "text-emerald-400" : "text-[#64748b] group-hover:text-emerald-400"
-              )} />
-              Money
-            </button>
+        {ordered.map(([label, list]) => (
+          <div key={label}>
+            <p className="px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">{label}</p>
+            <nav className="space-y-1">
+              {list
+                .sort((a, b) => (b.open_tasks ?? 0) - (a.open_tasks ?? 0) || String(a.name).localeCompare(String(b.name)))
+                .map((project) => (
+                  <NavButton
+                    key={project.id}
+                    active={String(project.id) === activeProjectId}
+                    onClick={() => onProjectSelect(String(project.id))}
+                    icon={ICONS[project.name] || Folder}
+                    badge={
+                      project.status === 'done' ? (
+                        <span className="ml-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full">Done</span>
+                      ) : (project.open_tasks ?? 0) > 0 ? (
+                        <span
+                          className="ml-2 rounded-full bg-[#1e2646] px-2 py-0.5 text-[11px] font-semibold text-[#cbd2e4] group-hover:bg-[#2a3460]"
+                          title={`${project.open_tasks} open tasks`}
+                        >
+                          {project.open_tasks}
+                        </span>
+                      ) : null
+                    }
+                  >
+                    {project.name}
+                  </NavButton>
+                ))}
+            </nav>
+          </div>
+        ))}
 
-            {personalNames.map(name => renderProjectLink(name, iconMap[name] || LayoutDashboard))}
-          </nav>
-        </div>
+        {quietCount > 0 && (
+          <button
+            onClick={() => setShowQuiet((v) => !v)}
+            className="flex w-full items-center gap-2 px-4 text-xs font-medium text-[#64748b] hover:text-[#aab2c8]"
+          >
+            {showQuiet ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {showQuiet ? 'Hide' : 'Show'} {quietCount} empty project{quietCount === 1 ? '' : 's'}
+          </button>
+        )}
+
+        <nav>
+          <button className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group text-left text-[#aab2c8] hover:bg-[#1e2646] hover:text-white">
+            <Settings className="mr-3 flex-shrink-0 h-5 w-5 text-[#64748b] group-hover:text-emerald-400" />
+            Settings
+          </button>
+        </nav>
       </div>
-      
+
       <div className="p-4 border-t border-[#1e2646]">
         <div className="flex items-center px-4">
           <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold">
