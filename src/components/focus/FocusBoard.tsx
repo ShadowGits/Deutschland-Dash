@@ -147,9 +147,14 @@ export default function FocusBoard({ inbox, weekData, metrics, projects }: Focus
       if (!res) return null;
       const moved = res.deadline_moved.length;
       const label = date === today ? 'today' : `${dayName(date)} ${shortDate(date)}`;
+      // A milestone a task was moved past now ends with its last task; say so,
+      // since its date changed without being touched directly.
+      const extended = (res.milestones_extended || []).map(
+        (m) => `"${m.name}" now due ${shortDate(m.to)} (was ${shortDate(m.from)})`
+      );
       return `Moved ${plural(res.updated.length, 'task')} to ${label}, untimed${
         moved ? ` · ${plural(moved, 'past deadline')} moved with them` : ''
-      }.`;
+      }.${extended.length ? ` Milestone ${extended.join('; ')}.` : ''}`;
     });
 
   const drop = (ids: string[]) =>
@@ -245,6 +250,7 @@ export default function FocusBoard({ inbox, weekData, metrics, projects }: Focus
       onSelect={(on) => toggleSelect(task.id, on)}
       onDone={() => done(task)}
       onTomorrow={() => moveTo([task.id], tomorrow)}
+      onPickDate={(day) => moveTo([task.id], day)}
       onDrop={() => drop([task.id])}
     />
   );

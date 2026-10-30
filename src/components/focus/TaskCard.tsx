@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowRight, Check, Clock, Loader2, Pin, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ArrowRight, CalendarDays, Check, Clock, Loader2, Pin, X } from 'lucide-react';
 import { estimate, isPinned, lateness, minutesLabel, type FocusTask } from '@/lib/focus';
 
 interface TaskCardProps {
@@ -14,6 +15,8 @@ interface TaskCardProps {
   onSelect?: (selected: boolean) => void;
   onDone: () => void;
   onTomorrow: () => void;
+  /** Move to a chosen day (YYYY-MM-DD). */
+  onPickDate: (date: string) => void;
   onDrop: () => void;
 }
 
@@ -34,8 +37,24 @@ export default function TaskCard({
   onSelect,
   onDone,
   onTomorrow,
+  onPickDate,
   onDrop,
 }: TaskCardProps) {
+  const dateInput = useRef<HTMLInputElement>(null);
+  // Shown only where the browser cannot open its date picker on request.
+  const [typingDate, setTypingDate] = useState(false);
+  const [typed, setTyped] = useState('');
+
+  const openPicker = () => {
+    const input = dateInput.current;
+    try {
+      if (!input?.showPicker) throw new Error('no picker');
+      input.showPicker();
+    } catch {
+      setTypingDate(true);
+    }
+  };
+
   const overdue = !!task.overdue;
   const badge = overdue
     ? lateness(task, today)
@@ -116,6 +135,30 @@ export default function TaskCard({
             </button>
             <button
               type="button"
+              onClick={openPicker}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+              title="Move to another day"
+            >
+              <CalendarDays size={13} /> Date
+            </button>
+            {/* The picker needs a rendered input to anchor to; this one is
+                invisible and only ever filled by choosing a day in it, so a
+                half-typed date can never move the task. */}
+            <input
+              ref={dateInput}
+              type="date"
+              min={today}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="sr-only"
+              onChange={(e) => {
+                const day = e.target.value;
+                e.target.value = '';
+                if (day && day >= today) onPickDate(day);
+              }}
+            />
+            <button
+              type="button"
               onClick={onDrop}
               className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-400 hover:bg-gray-100 hover:text-gray-700"
               title="Drop — closed as skipped, not deleted"
@@ -125,6 +168,38 @@ export default function TaskCard({
           </>
         )}
       </div>
+      {typingDate && !busy && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <input
+            type="date"
+            min={today}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            aria-label={`New date for ${task.title}`}
+            className="min-w-0 flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700"
+          />
+          <button
+            type="button"
+            disabled={!typed || typed < today}
+            onClick={() => {
+              onPickDate(typed);
+              setTypingDate(false);
+              setTyped('');
+            }}
+            className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            Move
+          </button>
+          <button
+            type="button"
+            onClick={() => setTypingDate(false)}
+            aria-label="Cancel"
+            className="rounded-md p-1 text-gray-400 hover:bg-gray-100"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

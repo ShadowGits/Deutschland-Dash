@@ -222,6 +222,7 @@ export async function triageTasksAction(
   const res = await makeRequest<{
     updated: string[];
     deadline_moved: string[];
+    milestones_extended?: { milestone_id: string; name: string; from: string; to: string }[];
     already_closed: string[];
     not_found: string[];
   }>('/v2/day/tasks/triage', {
