@@ -10,12 +10,17 @@ import { formatMoney } from '@/lib/finance';
 import {
   computePlan, planCategoryEmoji, compactMoney, monthLabel, dateLabel, todayIso,
   PLAN_COST_CATEGORIES, PLAN_FUND_CATEGORIES,
+  DEFAULT_HORIZON,
   type FundingData, type PlanItem, type PlanKind, type Certainty, type PlanView,
+  type PlanCategory,
 } from '@/lib/funding';
 import {
   createPlanItem, updatePlanItem, deletePlanItem, updatePlan,
-  markPaid, markUnpaid, reloadFunding, type PlanItemInput,
+  createPlanCategory, updatePlanCategory, deletePlanCategory,
+  markPaid, markUnpaid, reloadFunding,
+  type PlanItemInput, type PlanCategoryInput,
 } from '@/app/funding-actions';
+import PlanLanes from '@/components/widgets/PlanLanes';
 
 /* The funding plan.
  *
@@ -55,57 +60,24 @@ const CERTAINTY_LABEL: Record<Certainty, string> = {
 
 /* ------------------------------------------------------------------ stats */
 
-function Stat({
-  label, value, sub, tone = 'plain',
-}: {
-  label: string;
-  value: string;
-  sub?: React.ReactNode;
-  tone?: 'plain' | 'cost' | 'fund';
-}) {
-  const accent =
-    tone === 'cost' ? 'text-rose-600' : tone === 'fund' ? 'text-emerald-600' : 'text-gray-800';
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-2xl font-bold tabular-nums ${accent}`}>{value}</p>
-      {sub && <div className="text-xs text-gray-500 mt-1.5">{sub}</div>}
-    </div>
-  );
-}
-
-function PositionCard({ view }: { view: PlanView }) {
+/** The lane loan says whether there is enough money. This says whether it
+ *  turns up in time: money landing in March does not pay a bill due in
+ *  January, and that shortfall is invisible in any single total. */
+function TimingNote({ view }: { view: PlanView }) {
   const { totals } = view;
-  const tone = TONE[totals.status];
-  const currency = totals.baseCurrency;
-  const short = totals.gap < 0;
+  if (totals.loanNeeded <= 0) return null;
+  const tone = TONE[totals.status === 'green' ? 'amber' : totals.status];
 
   return (
-    <div className={`rounded-xl border-2 ${tone.ring} ${tone.bg} p-5 flex flex-col`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`h-2.5 w-2.5 rounded-full ${tone.dot}`} />
-        <p className={`text-xs font-semibold uppercase tracking-wider ${tone.text}`}>
-          {short ? 'Shortfall' : 'Surplus'}
-        </p>
-      </div>
-
-      <p className={`text-2xl font-bold tabular-nums ${tone.text}`}>
-        {formatMoney(Math.abs(totals.gap), currency)}
+    <div className={`flex items-start gap-2 rounded-lg border ${tone.ring} ${tone.bg} px-4 py-2.5 mb-5`}>
+      <Landmark size={15} className={`${tone.text} mt-0.5 flex-shrink-0`} />
+      <p className="text-xs text-gray-700 leading-relaxed">
+        <span className="font-semibold">
+          Bridge of {formatMoney(totals.loanNeeded, totals.baseCurrency)}
+        </span>
+        {totals.loanByMonth && <> needed by {monthLabel(totals.loanByMonth)}</>}
+        {' '}— on the dated lines below, money lands later than the payments they have to cover.
       </p>
-      <p className="text-xs text-gray-600 mt-1.5">{totals.headline}</p>
-
-      {totals.loanNeeded > 0 && (
-        <div className="mt-3 pt-3 border-t border-white/70 flex items-start gap-2">
-          <Landmark size={15} className={`${tone.text} mt-0.5 flex-shrink-0`} />
-          <p className="text-xs text-gray-700 leading-relaxed">
-            <span className="font-semibold">
-              Bridge of {formatMoney(totals.loanNeeded, currency)}
-            </span>
-            {totals.loanByMonth && <> needed by {monthLabel(totals.loanByMonth)}</>}
-            {!short && ' — the money exists, it just lands later than the bills.'}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -135,7 +107,7 @@ function Runway({ view }: { view: PlanView }) {
     <div>
       <div className="flex items-baseline justify-between mb-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          Money in hand, month by month
+          Dated lines, month by month
         </p>
         <p className="text-xs text-gray-400">
           {compactMoney(view.openingBalance, currency)} today
@@ -144,6 +116,11 @@ function Runway({ view }: { view: PlanView }) {
           )}
         </p>
       </div>
+
+      <p className="text-xs text-gray-400 -mt-2 mb-4">
+        Only the lines that carry a date. Categories kept as one number have no
+        month to sit in, so the lanes above are what the loan is read from.
+      </p>
 
       <div className="relative h-40 flex gap-[3px] items-stretch">
         {/* The zero line: everything under it is borrowed. */}
@@ -481,10 +458,12 @@ function LedgerRow({
 }
 
 function Ledger({
-  kind, items, baseCurrency, total, editing, adding, seed, saving,
+  kind, category, items, baseCurrency, total, editing, adding, seed, saving,
   onEdit, onAdd, onSave, onDelete, onCancel, onTogglePaid,
 }: {
   kind: PlanKind;
+  /** The lane entry these lines break down. */
+  category: PlanCategory;
   items: PlanItem[];
   baseCurrency: string;
   total: number;
@@ -501,52 +480,42 @@ function Ledger({
   onTogglePaid: (item: PlanItem) => void;
 }) {
   const cost = kind === 'cost';
-  const suggestions = cost
-    ? ['Tests', 'Tuition', 'Applications', 'Courses', 'Visa', 'Travel']
-    : ['Savings', 'Salary', 'Family', 'Loan'];
 
   return (
-    <div className="flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden">
+    <div
+      id={`plan-category-${category.id}`}
+      className="flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden scroll-mt-24"
+    >
       <div
-        className={`px-4 py-3 border-b flex items-center justify-between ${
+        className={`px-4 py-3 border-b flex items-center justify-between gap-3 ${
           cost ? 'bg-rose-50/60 border-rose-100' : 'bg-emerald-50/60 border-emerald-100'
         }`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {cost
-            ? <TrendingDown size={16} className="text-rose-500" />
-            : <PiggyBank size={16} className="text-emerald-600" />}
-          <h4 className="text-sm font-semibold text-gray-700">
-            {cost ? 'What it costs' : 'Where the money comes from'}
-          </h4>
+            ? <TrendingDown size={16} className="text-rose-500 flex-shrink-0" />
+            : <PiggyBank size={16} className="text-emerald-600 flex-shrink-0" />}
+          <h4 className="text-sm font-semibold text-gray-700 truncate">{category.name}</h4>
         </div>
-        <span className="text-sm font-bold text-gray-800 tabular-nums">
-          {formatMoney(total, baseCurrency)}
-        </span>
+        <div className="text-right flex-shrink-0">
+          <span className="text-sm font-bold text-gray-800 tabular-nums">
+            {formatMoney(total, baseCurrency)}
+          </span>
+          <span className="block text-[11px] text-gray-500 tabular-nums">
+            of {formatMoney(category.budget, baseCurrency)} {cost ? 'budgeted' : 'expected'}
+          </span>
+        </div>
       </div>
 
       <div className="divide-y divide-gray-100 flex-1">
         {items.length === 0 && !adding && (
           <div className="px-4 py-8 text-center">
-            <p className="text-sm text-gray-500 mb-1">
-              {cost ? 'No costs listed yet' : 'No money listed yet'}
-            </p>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-sm text-gray-500 mb-1">Nothing on this one yet</p>
+            <p className="text-xs text-gray-400">
               {cost
-                ? 'Everything the move will cost — tests, tuition, applications.'
-                : 'What you have now and what is still coming in.'}
+                ? `Break ${category.name} into what it is actually spent on, each with its date, and mark them paid as you go.`
+                : `Break ${category.name} into when each part lands, and mark it received as it arrives.`}
             </p>
-            <div className="flex flex-wrap gap-1.5 justify-center">
-              {suggestions.map((name) => (
-                <button
-                  key={name}
-                  onClick={() => onAdd({ label: name, category: name })}
-                  className="px-2.5 py-1 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-full hover:border-gray-300 hover:bg-gray-100 transition-colors"
-                >
-                  + {name}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
@@ -595,7 +564,7 @@ function Ledger({
           className="px-4 py-2.5 border-t border-gray-100 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex items-center justify-center transition-colors"
         >
           <Plus size={13} className="mr-1.5" />
-          Add {cost ? 'a cost' : 'money'}
+          Add a line
         </button>
       )}
     </div>
@@ -608,9 +577,12 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
   const [data, setData] = useState<FundingData>(initial);
   const [includeUnconfirmed, setIncludeUnconfirmed] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
-  const [addingTo, setAddingTo] = useState<PlanKind | null>(null);
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [addingCategoryTo, setAddingCategoryTo] = useState<PlanKind | null>(null);
   const [seed, setSeed] = useState<Partial<PlanItemInput>>({});
   const [rate, setRate] = useState(String(initial.plan?.eur_rate ?? 100));
+  const [horizon, setHorizon] = useState(initial.plan?.horizon_date || DEFAULT_HORIZON);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -642,6 +614,8 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
   const closeForms = () => {
     setEditing(null);
     setAddingTo(null);
+    setEditingCategory(null);
+    setAddingCategoryTo(null);
     setSeed({});
   };
 
@@ -662,15 +636,35 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
     });
   };
 
-  const save = (kind: PlanKind, id: string | null, values: PlanItemInput) =>
-    run(() => (id
-      ? updatePlanItem(id, values)
-      : createPlanItem(plan.id, { ...values, kind })));
+  /** A line always belongs to the category whose ledger it was added in, so
+   *  its lane entry adds up without the free-text category having to match. */
+  const save = (category: PlanCategory, id: string | null, values: PlanItemInput) =>
+    run(() => {
+      const owned = { ...values, category_id: category.id, category: category.name };
+      return id ? updatePlanItem(id, owned) : createPlanItem(plan.id, { ...owned, kind: category.kind });
+    });
 
-  const startAdd = (kind: PlanKind, values: Partial<PlanItemInput> = {}) => {
+  const startAdd = (categoryId: string, values: Partial<PlanItemInput> = {}) => {
     setEditing(null);
     setSeed(values);
-    setAddingTo(kind);
+    setAddingTo(categoryId);
+  };
+
+  const saveCategory = (kind: PlanKind, id: string | null, values: PlanCategoryInput) =>
+    run(() => (id
+      ? updatePlanCategory(id, values)
+      : createPlanCategory(plan.id, { ...values, kind })));
+
+  /** Opening a category's lines from its lane row. */
+  const jumpToDetail = (id: string) => {
+    document.getElementById(`plan-category-${id}`)?.scrollIntoView({
+      behavior: 'smooth', block: 'start',
+    });
+  };
+
+  const commitHorizon = () => {
+    if (!horizon || horizon === (plan.horizon_date || DEFAULT_HORIZON)) return;
+    run(() => updatePlan(plan.id, { horizon_date: horizon }));
   };
 
   const togglePaid = (item: PlanItem) =>
@@ -685,9 +679,8 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
     run(() => updatePlan(plan.id, { eur_rate: value }));
   };
 
-  const paidPct = totals.costEstimate
-    ? Math.round((totals.costPaid / totals.costEstimate) * 100)
-    : 0;
+  // Budget first, then money: the same order as the lanes above them.
+  const detailed = [...view.budgetCategories, ...view.fundCategories].filter((c) => c.detailed);
 
   return (
     <div className="space-y-5">
@@ -700,6 +693,7 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
         </h3>
 
         <div className="flex items-center gap-2">
+          {view.funds.length > 0 && (
           <button
             onClick={() => setIncludeUnconfirmed((v) => !v)}
             title="Recalculate using only money marked confirmed"
@@ -712,6 +706,21 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
             <CheckCircle2 size={13} className="mr-1.5" />
             Confirmed money only
           </button>
+          )}
+
+          <label
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500"
+            title="The date the money lane is read at: how much there will be by then."
+          >
+            <span>Money by</span>
+            <input
+              type="date"
+              value={horizon}
+              onChange={(e) => setHorizon(e.target.value)}
+              onBlur={commitHorizon}
+              className="bg-transparent text-gray-700 font-medium focus:outline-none"
+            />
+          </label>
 
           <div
             className="flex items-center px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500"
@@ -750,90 +759,59 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
         </div>
       )}
 
-      {/* The four numbers */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Stat
-          label="Budgeted"
-          value={formatMoney(totals.costEstimate, currency)}
-          tone="cost"
-          sub={
-            totals.costOverspend > 0 ? (
-              <span className="text-rose-600 font-semibold">
-                {formatMoney(totals.costOverspend, currency)} over budget
-                <span className="font-normal text-gray-500">
-                  {' '}· {formatMoney(totals.costPaid, currency)} spent
-                </span>
-              </span>
-            ) : totals.costPaid > 0 ? (
-              <>{formatMoney(totals.costPaid, currency)} spent so far · {paidPct}%</>
-            ) : (
-              'No payments recorded yet'
-            )
-          }
-        />
-        <Stat
-          label="Still to pay"
-          value={formatMoney(totals.costOutstanding, currency)}
-          sub={`${view.costs.length} cost${view.costs.length === 1 ? '' : 's'} on the plan`}
-        />
-        <Stat
-          label="Money available"
-          value={formatMoney(totals.fundAvailable, currency)}
-          tone="fund"
-          sub={
-            totals.costPaid > 0
-              ? <>{formatMoney(totals.fundOutstanding, currency)} listed, less {formatMoney(totals.costPaid, currency)} already paid out</>
-              : <>{formatMoney(view.openingBalance, currency)} in hand · rest still to arrive</>
-          }
-        />
-        <PositionCard view={view} />
-      </div>
+      {/* The two lanes, and the loan they produce. */}
+      <PlanLanes
+        budgetCategories={view.budgetCategories}
+        fundCategories={view.fundCategories}
+        lanes={view.lanes}
+        baseCurrency={currency}
+        saving={pending}
+        editing={editingCategory}
+        addingTo={addingCategoryTo}
+        onEdit={(id) => { closeForms(); setEditingCategory(id); }}
+        onAdd={(kind) => { closeForms(); setAddingCategoryTo(kind); }}
+        onSave={saveCategory}
+        onDelete={(id) => run(() => deletePlanCategory(id))}
+        onCancel={closeForms}
+        onJumpToDetail={jumpToDetail}
+      />
 
       {/* The runway. Nothing on the plan means nothing to chart, and an empty
           axis reads as a broken widget rather than an empty one. */}
       {(view.costs.length > 0 || view.funds.length > 0) && (
         <Card className="shadow-sm border-0 rounded-xl">
           <CardContent className="p-6">
+            <TimingNote view={view} />
             <Runway view={view} />
           </CardContent>
         </Card>
       )}
 
-      {/* The two sides, literally side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-        <Ledger
-          kind="cost"
-          items={view.costs}
-          baseCurrency={currency}
-          total={totals.costEstimate}
-          editing={editing}
-          adding={addingTo === 'cost'}
-          seed={seed}
-          saving={pending}
-          onEdit={(id) => { setAddingTo(null); setEditing(id); }}
-          onAdd={(values) => startAdd('cost', values)}
-          onSave={(id, values) => save('cost', id, values)}
-          onDelete={(id) => run(() => deletePlanItem(id))}
-          onCancel={closeForms}
-          onTogglePaid={togglePaid}
-        />
-        <Ledger
-          kind="fund"
-          items={view.funds}
-          baseCurrency={currency}
-          total={totals.fundExpected}
-          editing={editing}
-          adding={addingTo === 'fund'}
-          seed={seed}
-          saving={pending}
-          onEdit={(id) => { setAddingTo(null); setEditing(id); }}
-          onAdd={(values) => startAdd('fund', values)}
-          onSave={(id, values) => save('fund', id, values)}
-          onDelete={(id) => run(() => deletePlanItem(id))}
-          onCancel={closeForms}
-          onTogglePaid={togglePaid}
-        />
-      </div>
+      {/* The detailed view, only for the categories switched on for it. */}
+      {detailed.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          {detailed.map((category) => (
+            <Ledger
+              key={category.id}
+              kind={category.kind}
+              category={category}
+              items={category.items}
+              baseCurrency={currency}
+              total={category.planned}
+              editing={editing}
+              adding={addingTo === category.id}
+              seed={seed}
+              saving={pending}
+              onEdit={(id) => { setAddingTo(null); setEditing(id); }}
+              onAdd={(values) => startAdd(category.id, values)}
+              onSave={(id, values) => save(category, id, values)}
+              onDelete={(id) => run(() => deletePlanItem(id))}
+              onCancel={closeForms}
+              onTogglePaid={togglePaid}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

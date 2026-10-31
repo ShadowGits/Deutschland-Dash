@@ -21,9 +21,20 @@ export interface PlanItemInput {
   amount: number;
   currency: string;
   category: string | null;
+  category_id?: string | null;
   due_date: string | null;
   instalments: number;
   certainty: Certainty;
+  notes?: string | null;
+}
+
+export interface PlanCategoryInput {
+  kind: PlanKind;
+  name: string;
+  amount: number;
+  paid?: number;
+  currency?: string;
+  detailed?: boolean;
   notes?: string | null;
 }
 
@@ -58,7 +69,7 @@ function validate(input: Partial<PlanItemInput>): string | null {
  *  spreading the input straight into the update would make Postgres reject the
  *  whole statement. */
 const WRITABLE = [
-  'kind', 'label', 'amount', 'currency', 'category',
+  'kind', 'label', 'amount', 'currency', 'category', 'category_id',
   'due_date', 'instalments', 'certainty', 'notes',
 ] as const;
 
@@ -177,7 +188,7 @@ export async function deletePlanItem(id: string) {
 
 export async function updatePlan(
   id: string,
-  updates: { name?: string; eur_rate?: number; notes?: string | null }
+  updates: { name?: string; eur_rate?: number; notes?: string | null; horizon_date?: string }
 ) {
   if (updates.name !== undefined && !String(updates.name).trim()) {
     return { ok: false, error: 'Give the plan a name' };
@@ -262,6 +273,123 @@ export async function markUnpaid(planItemId: string) {
     if (error) throw new Error(error.message);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not undo it' };
+  }
+
+  revalidatePath('/');
+  return { ok: true };
+}
+
+
+/* ------------------------------------------------------------- categories
+ *
+ * A lane entry: the budget for a thing, or money expected by the horizon.
+ * The number is typed, so one exists with nothing under it, and the lane
+ * totals correctly whether or not it is itemised.
+ */
+
+function validateCategory(input: Partial<PlanCategoryInput>): string | null {
+  if (input.kind !== undefined && !KINDS.includes(input.kind)) {
+    return 'A category is either a budget or money coming in';
+  }
+  if (input.name !== undefined && !String(input.name).trim()) {
+    return 'Give the category a name';
+  }
+  if (input.amount !== undefined && !(Number(input.amount) >= 0)) {
+    return 'The amount cannot be negative';
+  }
+  if (input.paid !== undefined && !(Number(input.paid) >= 0)) {
+    return 'The amount paid cannot be negative';
+  }
+  return null;
+}
+
+const CATEGORY_WRITABLE = [
+  'kind', 'name', 'amount', 'paid', 'currency', 'detailed', 'notes',
+] as const;
+
+function normaliseCategory(input: Partial<PlanCategoryInput>): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const key of CATEGORY_WRITABLE) {
+    if (input[key] !== undefined) payload[key] = input[key];
+  }
+  if (typeof payload.name === 'string') payload.name = payload.name.trim();
+  if (payload.amount !== undefined) payload.amount = Number(payload.amount);
+  if (payload.paid !== undefined) payload.paid = Number(payload.paid);
+  if (payload.currency) payload.currency = String(payload.currency).toUpperCase();
+  return payload;
+}
+
+/** Postgres reports the one-per-side index as a constraint violation; say what
+ *  it means rather than showing the index's name. */
+function categoryError(message: string): string {
+  return /finance_plan_categories_name_idx|duplicate key/i.test(message)
+    ? 'There is already a category with that name on this side of the plan'
+    : message;
+}
+
+export async function createPlanCategory(planId: string, input: PlanCategoryInput) {
+  const problem = validateCategory(input);
+  if (problem) return { ok: false, error: problem };
+
+  try {
+    const workspace = await activeWorkspaceId();
+    const { data: siblings } = await tenantFilter(
+      supabase().from('finance_plan_categories').select('sort_order'),
+      workspace
+    ).eq('plan_id', planId).eq('kind', input.kind)
+      .order('sort_order', { ascending: false }).limit(1);
+
+    const { error } = await supabase().from('finance_plan_categories').insert({
+      ...normaliseCategory(input),
+      plan_id: planId,
+      sort_order: siblings?.length ? Number(siblings[0].sort_order || 0) + 1 : 0,
+      user_id: USER_ID,
+      workspace_id: workspace,
+    });
+    if (error) throw new Error(categoryError(error.message));
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save' };
+  }
+
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function updatePlanCategory(id: string, updates: Partial<PlanCategoryInput>) {
+  const problem = validateCategory(updates);
+  if (problem) return { ok: false, error: problem };
+
+  try {
+    const workspace = await activeWorkspaceId();
+    const { error } = await tenantFilter(
+      supabase().from('finance_plan_categories').update({
+        ...normaliseCategory(updates),
+        updated_at: new Date().toISOString(),
+      }),
+      workspace
+    ).eq('id', id);
+    if (error) throw new Error(categoryError(error.message));
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save' };
+  }
+
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Removing a category removes its lines with it — they are its breakdown.
+ *  The transactions those lines recorded stay in the passbook: the money left
+ *  the account, and 0032's foreign key only clears what they were paying for. */
+export async function deletePlanCategory(id: string) {
+  try {
+    const workspace = await activeWorkspaceId();
+    const { error } = await tenantFilter(
+      supabase().from('finance_plan_categories').delete(),
+      workspace
+    ).eq('id', id);
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not delete' };
   }
 
   revalidatePath('/');

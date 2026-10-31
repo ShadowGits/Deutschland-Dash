@@ -23,6 +23,25 @@ export interface PlanRow {
   base_currency: string;
   eur_rate: number;
   notes: string | null;
+  /** The date the funding lane is read at: how much there will be by then. */
+  horizon_date: string | null;
+}
+
+/** One entry in a lane: a budget (cost) or money expected by the horizon
+ *  (fund). The number is typed, so a category exists with nothing under it. */
+export interface PlanCategoryRow {
+  id: string;
+  plan_id: string;
+  kind: PlanKind;
+  name: string;
+  amount: number;
+  /** Paid or received so far. Ignored while detailed — the lines say instead. */
+  paid: number;
+  currency: string;
+  /** Whether this category shows the itemised plan-and-pay view. */
+  detailed: boolean;
+  notes: string | null;
+  sort_order: number;
 }
 
 export interface PlanItemRow {
@@ -30,7 +49,9 @@ export interface PlanItemRow {
   plan_id: string;
   kind: PlanKind;
   label: string;
+  /** The free-text category 0032 carried; category_id is what the lane uses. */
   category: string | null;
+  category_id: string | null;
   amount: number;
   currency: string;
   due_date: string | null;
@@ -53,6 +74,41 @@ export interface PlanItem extends PlanItemRow {
    *  Reported on its own so overspending is loud instead of silent. */
   overBy: number;
   progressPct: number;
+}
+
+/** A lane entry with its lines, and what has actually moved, folded in. */
+export interface PlanCategory extends PlanCategoryRow {
+  /** The typed budget, in the plan's base currency. */
+  budget: number;
+  /** Paid (cost) or received (fund): typed, or added up from the lines. */
+  settled: number;
+  outstanding: number;
+  /** Paid past the budget. Loud on its own rather than folded into the lane. */
+  overBy: number;
+  progressPct: number;
+  /** The lines under it, and what they come to. Detailed categories only. */
+  items: PlanItem[];
+  planned: number;
+  /** Lines adding up to more than the budget: planned, not yet spent. */
+  plannedOver: number;
+  /** Budget with nothing written against it yet. */
+  unplanned: number;
+}
+
+/** The two lanes and what they come to. */
+export interface PlanLanes {
+  /** Lane 1: everything budgeted. */
+  budget: number;
+  budgetPaid: number;
+  budgetOutstanding: number;
+  /** Lane 2: money there will be by the horizon. */
+  available: number;
+  availableReceived: number;
+  /** available - budget. Negative is the loan. */
+  difference: number;
+  /** What has to be borrowed: the difference when it is short, else zero. */
+  loan: number;
+  horizon: string;
 }
 
 export interface PlanMonth {
@@ -89,6 +145,10 @@ export interface PlanTotals {
 export interface PlanView {
   costs: PlanItem[];
   funds: PlanItem[];
+  /** The budget lane, then the money lane, each in sort order. */
+  budgetCategories: PlanCategory[];
+  fundCategories: PlanCategory[];
+  lanes: PlanLanes;
   totals: PlanTotals;
   openingBalance: number;
   months: PlanMonth[];
@@ -98,6 +158,7 @@ export interface PlanView {
 export interface FundingData {
   configured: boolean;
   plan: PlanRow | null;
+  categories: PlanCategoryRow[];
   items: PlanItemRow[];
   /** Everything already attributed to a plan line. */
   linked: Transaction[];
@@ -203,14 +264,22 @@ export function compactMoney(amount: number, currency: string): string {
 /* ------------------------------------------------------------ the reading */
 
 const PLAN_ITEM_COLUMNS =
-  'id,plan_id,kind,label,category,amount,currency,due_date,instalments,certainty,notes,sort_order';
+  'id,plan_id,kind,label,category,category_id,amount,currency,due_date,instalments,certainty,notes,sort_order';
+
+const PLAN_CATEGORY_COLUMNS =
+  'id,plan_id,kind,name,amount,paid,currency,detailed,notes,sort_order';
 
 /** Every workspace should have a plan from migration 0032. Creating one on the
  *  first read means a database that missed the seed still opens on an empty
  *  plan rather than on an error. */
+const PLAN_COLUMNS = 'id,name,base_currency,eur_rate,notes,horizon_date';
+
+/** Where the funding lane is read to when the plan has no date of its own. */
+export const DEFAULT_HORIZON = '2027-07-31';
+
 async function ensurePlan(workspace: string): Promise<PlanRow | null> {
   const { data, error } = await tenantFilter(
-    supabase().from('finance_plans').select('id,name,base_currency,eur_rate,notes'),
+    supabase().from('finance_plans').select(PLAN_COLUMNS),
     workspace
   ).order('created_at', { ascending: true }).limit(1);
 
@@ -226,7 +295,7 @@ async function ensurePlan(workspace: string): Promise<PlanRow | null> {
       user_id: USER_ID,
       workspace_id: workspace,
     })
-    .select('id,name,base_currency,eur_rate,notes')
+    .select(PLAN_COLUMNS)
     .single();
 
   if (insertError) throw new Error(insertError.message);
@@ -235,7 +304,7 @@ async function ensurePlan(workspace: string): Promise<PlanRow | null> {
 
 export async function fetchFunding(): Promise<FundingData> {
   const empty: FundingData = {
-    configured: false, plan: null, items: [], linked: [],
+    configured: false, plan: null, categories: [], items: [], linked: [],
   };
   if (!isDirectReadConfigured()) return empty;
 
@@ -244,7 +313,11 @@ export async function fetchFunding(): Promise<FundingData> {
     const plan = await ensurePlan(workspace);
     if (!plan) return { ...empty, configured: true };
 
-    const [itemsResult, linkedResult] = await Promise.all([
+    const [categoryResult, itemsResult, linkedResult] = await Promise.all([
+      tenantFilter(
+        supabase().from('finance_plan_categories').select(PLAN_CATEGORY_COLUMNS),
+        workspace
+      ).eq('plan_id', plan.id).order('sort_order', { ascending: true }),
       tenantFilter(
         supabase().from('finance_plan_items').select(PLAN_ITEM_COLUMNS),
         workspace
@@ -257,12 +330,14 @@ export async function fetchFunding(): Promise<FundingData> {
         .order('date', { ascending: false }),
     ]);
 
+    if (categoryResult.error) throw new Error(categoryResult.error.message);
     if (itemsResult.error) throw new Error(itemsResult.error.message);
     if (linkedResult.error) throw new Error(linkedResult.error.message);
 
     return {
       configured: true,
       plan,
+      categories: (categoryResult.data || []) as PlanCategoryRow[],
       items: (itemsResult.data || []) as PlanItemRow[],
       linked: (linkedResult.data || []) as Transaction[],
     };
@@ -343,6 +418,40 @@ function instalmentSchedule(item: PlanItem, today: string): [string, number][] {
   return out;
 }
 
+/** A lane entry with its lines folded in.
+ *
+ *  The budget is the typed number, always: the lane has to total correctly
+ *  whether or not the category is itemised, and a category with no lines is
+ *  the common case. What has been paid comes from the lines when the category
+ *  is detailed — those payments are real transactions and cannot be allowed to
+ *  disagree with a figure typed beside them — and from the typed figure when
+ *  it is not.
+ */
+function toPlanCategory(
+  row: PlanCategoryRow, items: PlanItem[], base: string, eurRate: number
+): PlanCategory {
+  const budget = toBase(Number(row.amount || 0), row.currency, base, eurRate);
+  const planned = round(items.reduce((total, item) => total + item.estimate, 0));
+  const settled = row.detailed
+    ? round(items.reduce((total, item) => total + item.settled, 0))
+    : toBase(Number(row.paid || 0), row.currency, base, eurRate);
+
+  return {
+    ...row,
+    amount: Number(row.amount || 0),
+    paid: Number(row.paid || 0),
+    budget,
+    settled,
+    outstanding: round(Math.max(budget - settled, 0)),
+    overBy: round(Math.max(settled - budget, 0)),
+    progressPct: budget ? Math.min(Math.round((settled / budget) * 1000) / 10, 100) : 0,
+    items,
+    planned,
+    plannedOver: row.detailed ? round(Math.max(planned - budget, 0)) : 0,
+    unplanned: row.detailed ? round(Math.max(budget - planned, 0)) : 0,
+  };
+}
+
 export interface ComputeOptions {
   includeUnconfirmed?: boolean;
   today?: string;
@@ -417,6 +526,39 @@ export function computePlan(data: FundingData, options: ComputeOptions = {}): Pl
     });
   }
 
+  // The lanes. Each category's lines are its breakdown, so they are matched
+  // by category_id; a line whose category was deleted keeps its own figures
+  // but belongs to no lane entry.
+  const byCategory = new Map<string, PlanItem[]>();
+  for (const item of [...costs, ...funds]) {
+    if (!item.category_id) continue;
+    const bucket = byCategory.get(item.category_id) || [];
+    bucket.push(item);
+    byCategory.set(item.category_id, bucket);
+  }
+  const categories = (data.categories || [])
+    .map((row) => toPlanCategory(row, byCategory.get(row.id) || [], base, eurRate))
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  const budgetCategories = categories.filter((c) => c.kind === 'cost');
+  const fundCategories = categories.filter((c) => c.kind === 'fund');
+
+  const laneSum = (rows: PlanCategory[], field: 'budget' | 'settled' | 'outstanding') =>
+    round(rows.reduce((total, row) => total + row[field], 0));
+
+  const budgetTotal = laneSum(budgetCategories, 'budget');
+  const availableTotal = laneSum(fundCategories, 'budget');
+  const difference = round(availableTotal - budgetTotal);
+  const lanes: PlanLanes = {
+    budget: budgetTotal,
+    budgetPaid: laneSum(budgetCategories, 'settled'),
+    budgetOutstanding: laneSum(budgetCategories, 'outstanding'),
+    available: availableTotal,
+    availableReceived: laneSum(fundCategories, 'settled'),
+    difference,
+    loan: round(Math.max(-difference, 0)),
+    horizon: data.plan?.horizon_date || DEFAULT_HORIZON,
+  };
+
   const sum = (rows: PlanItem[], field: 'estimate' | 'settled' | 'outstanding' | 'overBy') =>
     round(rows.reduce((total, row) => total + row[field], 0));
 
@@ -442,6 +584,9 @@ export function computePlan(data: FundingData, options: ComputeOptions = {}): Pl
   return {
     costs,
     funds,
+    budgetCategories,
+    fundCategories,
+    lanes,
     openingBalance,
     months,
     undatedCosts: costs.filter((c) => !c.due_date && c.outstanding > 0),
