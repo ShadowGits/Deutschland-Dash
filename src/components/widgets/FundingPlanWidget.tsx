@@ -597,11 +597,25 @@ export default function FundingPlanWidget({ initial }: { initial: FundingData })
     return (
       <Card className="shadow-sm border-0 rounded-xl">
         <CardContent className="p-8 text-center text-gray-500">
-          <p className="font-medium text-gray-700 mb-2">The funding plan is not connected yet</p>
-          <p className="text-sm">
-            Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and PLANNER_USER_ID in the
-            dashboard environment to switch this on.
-          </p>
+          {data.error ? (
+            <>
+              <p className="font-medium text-gray-700 mb-2">The funding plan could not be read</p>
+              <p className="text-sm">{data.error}</p>
+              {/relation .* does not exist|finance_plan_categories/i.test(data.error) && (
+                <p className="text-sm mt-2">
+                  Migration 0033 has not been run on this database yet.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-gray-700 mb-2">The funding plan is not connected yet</p>
+              <p className="text-sm">
+                Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and PLANNER_USER_ID in the
+                dashboard environment to switch this on.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     );

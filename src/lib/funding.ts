@@ -158,6 +158,8 @@ export interface PlanView {
 export interface FundingData {
   configured: boolean;
   plan: PlanRow | null;
+  /** Why the read failed, so a missing table does not read as a missing key. */
+  error?: string | null;
   categories: PlanCategoryRow[];
   items: PlanItemRow[];
   /** Everything already attributed to a plan line. */
@@ -304,7 +306,7 @@ async function ensurePlan(workspace: string): Promise<PlanRow | null> {
 
 export async function fetchFunding(): Promise<FundingData> {
   const empty: FundingData = {
-    configured: false, plan: null, categories: [], items: [], linked: [],
+    configured: false, plan: null, error: null, categories: [], items: [], linked: [],
   };
   if (!isDirectReadConfigured()) return empty;
 
@@ -342,8 +344,9 @@ export async function fetchFunding(): Promise<FundingData> {
       linked: (linkedResult.data || []) as Transaction[],
     };
   } catch (err) {
-    console.error('Funding plan read failed:', err instanceof Error ? err.message : err);
-    return { ...empty, configured: true };
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Funding plan read failed:', message);
+    return { ...empty, configured: true, error: message };
   }
 }
 
